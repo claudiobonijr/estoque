@@ -72,7 +72,7 @@ elif aba_selecionada == "📦 Cadastro & Importação":
             if st.form_submit_button("Salvar Insumo"):
                 novo = pd.DataFrame([{"codigo": cod, "descricao": desc}])
                 updated = pd.concat([df_prod, novo], ignore_index=True)
-                conn.update(worksheet="produtos", data=updated)
+                conn.update(worksheet="produtos", data=updated, spreadsheet=st.secrets["gsheets_url"])
                 st.success("Item cadastrado!")
 
     with t2:
@@ -112,7 +112,7 @@ elif aba_selecionada == "📥 Entrada de Material":
                     "mapa": mapa, "oc": oc, "codigo": item.split(" - ")[0], 
                     "descricao": item.split(" - ")[1], "quantidade": qtd
                 }])
-                conn.update(worksheet="movimentacoes", data=pd.concat([df_mov, nova_mov], ignore_index=True))
+                (worksheet="movimentacoes", data=pd.concat([df_mov, nova_mov], ignore_index=True))
                 st.success("Entrada salva na nuvem!")
 
 # --- SAÍDA ---
@@ -142,3 +142,4 @@ elif aba_selecionada == "📜 Histórico Geral":
     st.title("📜 Histórico de Movimentações")
     st.dataframe(df_mov, use_container_width=True, hide_index=True)
     st.download_button("Baixar Histórico (CSV)", df_mov.to_csv(index=False), "historico_estoque.csv")
+
