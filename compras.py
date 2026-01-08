@@ -1,117 +1,144 @@
 import streamlit as st
+from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-import sqlite3
 from datetime import datetime
 
-# Configuração e Estilo
-st.set_page_config(page_title="Controle de Estoque Obras", layout="wide")
+# Configurações de Página
+st.set_page_config(page_title="Gestão de Estoque Pro", page_icon="🏗️", layout="wide")
 
-conn = sqlite3.connect('estoque_obras.db', check_same_thread=False)
-c = conn.cursor()
+# Estilo CSS para melhorar o visual
+st.markdown("""
+    <style>
+    .main { background-color: #f5f7f9; }
+    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #007bff; color: white; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    </style>
+    """, unsafe_allow_html=True)
 
-# Criar tabelas necessárias
-c.execute('''CREATE TABLE IF NOT EXISTS produtos 
-             (codigo TEXT PRIMARY KEY, descricao TEXT)''')
+# Conexão com Google Sheets
+conn = st.connection("gsheets", type=GSheetsConnection)
 
-c.execute('''CREATE TABLE IF NOT EXISTS movimentacoes 
-             (id INTEGER PRIMARY KEY, tipo TEXT, data TEXT, obra TEXT, sc TEXT, 
-              mapa TEXT, oc TEXT, codigo TEXT, descricao TEXT, quantidade REAL)''')
-conn.commit()
+# Função para ler dados com cache desativado para tempo real
+def carregar_dados(aba):
+    try:
+        return conn.read(worksheet=aba, ttl=0)
+    except:
+        return pd.DataFrame()
 
-st.sidebar.title("🏗️ Menu Principal")
-escolha = st.sidebar.radio("Ir para:", ["📊 Dashboard", "📝 Cadastrar Produto", "📥 Entrada", "📤 Saída", "📜 Histórico"])
+# Sidebar de Navegação
+st.sidebar.image("https://cdn-icons-png.flaticon.com/512/4222/4222961.png", width=100)
+st.sidebar.title("Menu de Gestão")
+aba_selecionada = st.sidebar.radio("Navegação:", ["📊 Dashboard", "📦 Cadastro & Importação", "📥 Entrada de Material", "📤 Saída/Aplicação", "📜 Histórico Geral"])
 
 # --- LÓGICA DE DADOS ---
-df_mov = pd.read_sql_query("SELECT * FROM movimentacoes", conn)
-df_prod = pd.read_sql_query("SELECT * FROM produtos", conn)
+df_prod = carregar_dados("produtos")
+df_mov = carregar_dados("movimentacoes")
 
-# --- ABA: DASHBOARD ---
-if escolha == "📊 Dashboard":
-    st.title("📊 Dashboard de Estoque")
-    if not df_mov.empty:
-        df_mov['qtd_ajustada'] = df_mov.apply(lambda x: x['quantidade'] if x['tipo'] == 'Entrada' else -x['quantidade'], axis=1)
+# --- DASHBOARD ---
+if aba_selecionada == "📊 Dashboard":
+    st.title("📊 Painel de Controle de Estoque")
+    
+    if not df_mov.empty and "quantidade" in df_mov.columns:
+        # Cálculo de Saldo
+        df_mov['qtd_ajustada'] = df_mov.apply(lambda x: float(x['quantidade']) if x['tipo'] == 'Entrada' else -float(x['quantidade']), axis=1)
         saldo_df = df_mov.groupby(['codigo', 'descricao']).agg({'qtd_ajustada': 'sum'}).reset_index()
         saldo_df.columns = ['Código', 'Descrição', 'Saldo Atual']
+
+        # Métricas
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Itens Cadastrados", len(df_prod))
+        c2.metric("Movimentações (Mês)", len(df_mov))
+        c3.metric("Itens com Saldo Baixo", len(saldo_df[saldo_df['Saldo Atual'] < 5]))
+
+        st.markdown("---")
+        st.subheader("📦 Inventário em Tempo Real")
+        st.dataframe(saldo_df, use_container_width=True, hide_index=True)
         
-        c1, c2 = st.columns(2)
-        c1.metric("Produtos Cadastrados", len(df_prod))
-        c2.metric("Movimentações Realizadas", len(df_mov))
-        
-        st.subheader("📦 Saldo em Tempo Real")
-        st.dataframe(saldo_df, use_container_width=True)
-        st.bar_chart(data=saldo_df, x='Descrição', y='Saldo Atual')
+        if not saldo_df.empty:
+            st.bar_chart(data=saldo_df, x='Descrição', y='Saldo Atual')
     else:
-        st.info("Nenhuma movimentação registrada ainda.")
+        st.info("Nenhuma movimentação registrada. O dashboard aparecerá assim que você fizer a primeira entrada.")
 
-# --- ABA: CADASTRO DE PRODUTOS ---
-elif escolha == "📝 Cadastrar Produto":
-    st.subheader("📝 Cadastro de Novos Materiais")
-    with st.form("form_prod"):
-        cod = st.text_input("Código do Produto (Ex: MAT-001)")
-        desc = st.text_input("Descrição completa (Ex: Cimento CP-II 50kg)")
-        if st.form_submit_button("Salvar Produto"):
-            try:
-                c.execute("INSERT INTO produtos VALUES (?,?)", (cod, desc))
-                conn.commit()
-                st.success("Produto cadastrado com sucesso!")
-                st.rerun()
-            except:
-                st.error("Este código já está cadastrado!")
+# --- CADASTRO & IMPORTAÇÃO ---
+elif aba_selecionada == "📦 Cadastro & Importação":
+    st.title("📦 Gestão de Itens")
+    t1, t2 = st.tabs(["Cadastro Manual", "Importar do Mais Controle"])
+    
+    with t1:
+        with st.form("form_manual"):
+            col1, col2 = st.columns(2)
+            cod = col1.text_input("Código do Insumo")
+            desc = col2.text_input("Descrição Completa")
+            if st.form_submit_button("Salvar Insumo"):
+                novo = pd.DataFrame([{"codigo": cod, "descricao": desc}])
+                updated = pd.concat([df_prod, novo], ignore_index=True)
+                conn.update(worksheet="produtos", data=updated)
+                st.success("Item cadastrado!")
 
-# --- ABA: ENTRADA ---
-elif escolha == "📥 Entrada":
-    st.subheader("📥 Registro de Entrada")
-    if df_prod.empty:
-        st.warning("Cadastre um produto primeiro na aba 'Cadastrar Produto'.")
+    with t2:
+        st.subheader("Subir Planilha do Mais Controle")
+        arquivo = st.file_uploader("Arraste o Excel/CSV aqui", type=['xlsx', 'csv'])
+        if arquivo:
+            df_imp = pd.read_excel(arquivo) if arquivo.name.endswith('xlsx') else pd.read_csv(arquivo)
+            st.dataframe(df_imp.head(3))
+            c_cod = st.selectbox("Coluna do Código:", df_imp.columns)
+            c_desc = st.selectbox("Coluna da Descrição:", df_imp.columns)
+            if st.button("Confirmar Importação em Massa"):
+                mapeado = df_imp[[c_cod, c_desc]].rename(columns={c_cod: 'codigo', c_desc: 'descricao'})
+                final = pd.concat([df_prod, mapeado], ignore_index=True).drop_duplicates(subset='codigo')
+                conn.update(worksheet="produtos", data=final)
+                st.success("Importação concluída!")
+
+# --- ENTRADA ---
+elif aba_selecionada == "📥 Entrada de Material":
+    st.title("📥 Registro de Entrada")
+    if df_prod.empty: st.error("Cadastre produtos antes de continuar.")
     else:
         with st.form("entrada"):
             col1, col2 = st.columns(2)
-            with col1:
-                data = st.date_input("Data", datetime.now())
-                obra = st.text_input("Obra Destino")
-                sc = st.text_input("SC (Solicitação)")
-                # Seleção automática de produto
-                lista_prods = df_prod['codigo'] + " - " + df_prod['descricao']
-                prod_sel = st.selectbox("Selecione o Produto", lista_prods)
-            with col2:
-                mapa = st.text_input("Mapa de Cotação")
-                oc = st.text_input("OC (Ordem de Compra)")
-                qtd = st.number_input("Quantidade", min_value=0.1)
+            data = col1.date_input("Data da NF/Entrada", datetime.now())
+            obra = col1.text_input("Obra Destino")
+            lista_p = df_prod['codigo'] + " - " + df_prod['descricao']
+            item = col1.selectbox("Selecione o Item", lista_p)
             
-            if st.form_submit_button("Confirmar Entrada"):
-                cod_final = prod_sel.split(" - ")[0]
-                desc_final = prod_sel.split(" - ")[1]
-                c.execute("INSERT INTO movimentacoes VALUES (NULL,?,?,?,?,?,?,?,?,?)", 
-                          ('Entrada', str(data), obra, sc, mapa, oc, cod_final, desc_final, qtd))
-                conn.commit()
-                st.success(f"Entrada de {desc_final} realizada!")
+            sc = col2.text_input("SC (Solicitação)")
+            mapa = col2.text_input("Mapa de Cotação")
+            oc = col2.text_input("OC (Ordem de Compra)")
+            qtd = col2.number_input("Quantidade Recebida", min_value=0.01)
+            
+            if st.form_submit_button("Confirmar Recebimento"):
+                nova_mov = pd.DataFrame([{
+                    "tipo": "Entrada", "data": str(data), "obra": obra, "sc": sc, 
+                    "mapa": mapa, "oc": oc, "codigo": item.split(" - ")[0], 
+                    "descricao": item.split(" - ")[1], "quantidade": qtd
+                }])
+                conn.update(worksheet="movimentacoes", data=pd.concat([df_mov, nova_mov], ignore_index=True))
+                st.success("Entrada salva na nuvem!")
 
-# --- ABA: SAÍDA ---
-elif escolha == "📤 Saída":
-    st.subheader("📤 Registro de Saída")
-    if df_prod.empty:
-        st.warning("Nenhum produto cadastrado.")
-    else:
-        with st.form("saida"):
-            col1, col2 = st.columns(2)
-            with col1:
-                data = st.date_input("Data", datetime.now())
-                obra = st.text_input("Obra Aplicada")
-                lista_prods = df_prod['codigo'] + " - " + df_prod['descricao']
-                prod_sel = st.selectbox("Selecione o Produto", lista_prods)
-            with col2:
-                qtd = st.number_input("Quantidade Saída", min_value=0.1)
-                ref = st.text_input("Ref. OC/SC de Origem")
-                
-            if st.form_submit_button("Confirmar Saída"):
-                cod_final = prod_sel.split(" - ")[0]
-                desc_final = prod_sel.split(" - ")[1]
-                c.execute("INSERT INTO movimentacoes VALUES (NULL,?,?,?,?,?,?,?,?,?)", 
-                          ('Saída', str(data), obra, "", "", ref, cod_final, desc_final, qtd))
-                conn.commit()
-                st.warning(f"Saída de {desc_final} registrada!")
+# --- SAÍDA ---
+elif aba_selecionada == "📤 Saída/Aplicação":
+    st.title("📤 Registro de Saída")
+    with st.form("saida"):
+        col1, col2 = st.columns(2)
+        data = col1.date_input("Data da Saída", datetime.now())
+        obra = col1.text_input("Obra/Frente de Trabalho")
+        lista_p = df_prod['codigo'] + " - " + df_prod['descricao']
+        item = col1.selectbox("Selecione o Item", lista_p)
+        
+        qtd = col2.number_input("Quantidade Utilizada", min_value=0.01)
+        ref = col2.text_input("Referência (Ex: Pedido de Saída)")
+        
+        if st.form_submit_button("Confirmar Saída"):
+            nova_mov = pd.DataFrame([{
+                "tipo": "Saída", "data": str(data), "obra": obra, "sc": "", 
+                "mapa": "", "oc": ref, "codigo": item.split(" - ")[0], 
+                "descricao": item.split(" - ")[1], "quantidade": qtd
+            }])
+            conn.update(worksheet="movimentacoes", data=pd.concat([df_mov, nova_mov], ignore_index=True))
+            st.warning("Saída registrada!")
 
-# --- ABA: HISTÓRICO ---
-elif escolha == "📜 Histórico":
-    st.subheader("📜 Histórico de Movimentações")
-    st.dataframe(df_mov, use_container_width=True)
+# --- HISTÓRICO ---
+elif aba_selecionada == "📜 Histórico Geral":
+    st.title("📜 Histórico de Movimentações")
+    st.dataframe(df_mov, use_container_width=True, hide_index=True)
+    st.download_button("Baixar Histórico (CSV)", df_mov.to_csv(index=False), "historico_estoque.csv")
