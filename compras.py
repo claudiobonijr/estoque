@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 
 # 1. CONFIGURAÇÃO DA PÁGINA
-st.set_page_config(page_title="Gestão de Estoque Pro", page_icon="🏗️", layout="wide")
+st.set_page_config(page_title="Gestão de Estoque Amâncio", page_icon="🏗️", layout="wide")
 
 # 2. LOGO E PERSONALIZAÇÃO VISUAL
 # Para trocar a logo, substitua o link abaixo pelo link da sua imagem
@@ -53,8 +53,8 @@ def get_connection():
 
 # 4. SIDEBAR (MENU LATERAL)
 with st.sidebar:
-    st.image(logo_url, width=110)
-    st.title("Sistema de Obras")
+    st.image(logo_url, width=200)
+    st.title("Gestão de Estoque")
     st.markdown("---")
     menu = st.radio("Selecione uma Opção:", 
                     ["📊 Dashboard", "📦 Cadastro", "📥 Entrada", "📤 Saída"])
@@ -166,4 +166,5 @@ elif menu == "📤 Saída":
                 st.info("Saída registrada!")
     else:
         st.warning("Cadastre produtos para habilitar a saída.")
+
 
