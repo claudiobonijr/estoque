@@ -5,10 +5,10 @@ from datetime import datetime
 import io
 
 # 1. CONFIGURAÇÃO DA PÁGINA
-st.set_page_config(page_title="Gestão de Obras Pro", page_icon="🏗️", layout="wide")
+st.set_page_config(page_title="Gestão de Estoque", page_icon="🏗️", layout="wide")
 
 # 2. LOGO E CSS PERSONALIZADO
-logo_url = "https://cdn-icons-png.flaticon.com/512/4222/4222961.png"
+logo_url = "https://media.discordapp.net/attachments/1287152284328919116/1459226633025224879/Design-sem-nome-1.png?ex=69628234&is=696130b4&hm=460d0214e433068507b61d26f3ae1957e36d7a9480bf97e899ef3ae70303f294&=&format=webp&quality=lossless&width=600&height=158"
 
 st.markdown("""
     <style>
@@ -39,7 +39,7 @@ if "authenticated" not in st.session_state:
 
 # 5. SIDEBAR
 with st.sidebar:
-    st.image(logo_url, width=90)
+    st.image(logo_url, width=235)
     st.title("Controle Amâncio")
     st.markdown("---")
     
@@ -160,3 +160,4 @@ elif menu == "📤 Registrar Saída":
 
 # 7. RODAPÉ
 st.markdown('<div class="footer">Desenvolvido por Claudio Boni Junior - Gestão Inteligente de Obras</div>', unsafe_allow_html=True)
+
