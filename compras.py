@@ -73,22 +73,58 @@ with st.sidebar:
 conn = get_connection()
 
 if conn:
-    # --- TELA: SALDO GERAL ---
+    # --- TELA: SALDO GERAL (REVISADA) ---
     if menu == "📊 Saldo Geral":
         st.title("📊 Saldo em Estoque")
-        df_mov = pd.read_sql("SELECT * FROM movimentacoes", conn)
-        if not df_mov.empty:
-            df_mov['val'] = df_mov.apply(lambda x: x['quantidade'] if x['tipo'] in ['Entrada', 'Ajuste(+)'] else -x['quantidade'], axis=1)
-            saldo = df_mov.groupby(['codigo', 'descricao'])['val'].sum().reset_index()
-            saldo.columns = ['Cód', 'Descrição', 'Saldo Atual']
+        
+        # 1. Pegamos todos os produtos cadastrados
+        df_produtos = pd.read_sql("SELECT codigo, descricao FROM produtos ORDER BY descricao", conn)
+        
+        # 2. Pegamos as movimentações
+        df_mov = pd.read_sql("SELECT codigo, tipo, quantidade FROM movimentacoes", conn)
+        
+        if not df_produtos.empty:
+            if not df_mov.empty:
+                # Calcular saldo por código
+                df_mov['val'] = df_mov.apply(lambda x: x['quantidade'] if x['tipo'] in ['Entrada', 'Ajuste(+)'] else -x['quantidade'], axis=1)
+                saldos_calc = df_mov.groupby('codigo')['val'].sum().reset_index()
+                
+                # Unir com a tabela de produtos para garantir que TODOS apareçam (mesmo os sem movimentação)
+                resultado = pd.merge(df_produtos, saldos_calc, on='codigo', how='left')
+                resultado['val'] = resultado['val'].fillna(0) # Transforma o que é vazio em 0
+            else:
+                # Se não houver nenhuma movimentação no banco, mostra tudo como zero
+                resultado = df_produtos.copy()
+                resultado['val'] = 0
             
-            busca = st.text_input("🔍 Pesquisar material:")
+            resultado.columns = ['Cód', 'Descrição', 'Saldo Atual']
+
+            # 3. Barra de Pesquisa Reforçada
+            busca = st.text_input("🔍 Pesquisar material (Nome ou Código):", placeholder="Ex: Cimento ou CIM-01")
+            
             if busca:
-                saldo = saldo[saldo['Descrição'].str.contains(busca, case=False) | saldo['Cód'].str.contains(busca)]
+                # Filtra tanto na coluna Descrição quanto na coluna Código
+                resultado = resultado[
+                    resultado['Descrição'].str.contains(busca, case=False) | 
+                    resultado['Cód'].str.contains(busca, case=False)
+                ]
             
-            st.dataframe(saldo, use_container_width=True, hide_index=True)
+            # Exibição da Tabela
+            st.dataframe(
+                resultado, 
+                use_container_width=True, 
+                hide_index=True,
+                column_config={
+                    "Saldo Atual": st.column_config.NumberColumn(format="%.2f")
+                }
+            )
+            
+            # Alerta visual para itens zerados
+            itens_zerados = len(resultado[resultado['Saldo Atual'] <= 0])
+            if itens_zerados > 0:
+                st.caption(f"⚠️ Existem {itens_zerados} itens com estoque zerado ou negativo.")
         else:
-            st.info("Nenhuma movimentação registrada ainda.")
+            st.info("Nenhum material cadastrado no sistema. Vá em '📦 Cadastrar Material' primeiro.")
 
     # --- TELA: CADASTRO ---
     elif menu == "📦 Cadastrar Material":
@@ -163,3 +199,4 @@ if conn:
     conn.close()
 
 st.markdown('<div class="footer">Claudio Boni Junior - Gestão de Obras</div>', unsafe_allow_html=True)
+
