@@ -90,7 +90,7 @@ elif aba_selecionada == "📦 Cadastro & Importação":
             if st.button("Confirmar Importação em Massa"):
                 mapeado = df_imp[[c_cod, c_desc]].rename(columns={c_cod: 'codigo', c_desc: 'descricao'})
                 final = pd.concat([df_prod, mapeado], ignore_index=True).drop_duplicates(subset='codigo')
-                conn.update(worksheet="produtos", data=final, spreadsheet=st.secrets["gsheets_url"])
+                conn.update(worksheet="produtos", data=updated, spreadsheet=st.secrets["gsheets_url"])
                 st.success("Importação concluída com sucesso!")
 
 # --- ENTRADA ---
@@ -119,7 +119,7 @@ elif aba_selecionada == "📥 Entrada de Material":
                 }])
                 # LINHA CORRIGIDA ABAIXO:
                 mov_atualizada = pd.concat([df_mov, nova_mov], ignore_index=True)
-                conn.update(worksheet="movimentacoes", data=mov_atualizada)
+                conn.update(worksheet="produtos", data=updated, spreadsheet=st.secrets["gsheets_url"])
                 st.success("Entrada salva na nuvem!")
 
 # --- SAÍDA ---
@@ -145,7 +145,7 @@ elif aba_selecionada == "📤 Saída/Aplicação":
                     "descricao": item.split(" - ")[1], "quantidade": qtd
                 }])
                 mov_atualizada = pd.concat([df_mov, nova_mov], ignore_index=True)
-                conn.update(worksheet="movimentacoes", data=mov_atualizada)
+                conn.update(worksheet="produtos", data=updated, spreadsheet=st.secrets["gsheets_url"])
                 st.warning("Saída registrada!")
 
 # --- HISTÓRICO ---
@@ -153,4 +153,5 @@ elif aba_selecionada == "📜 Histórico Geral":
     st.title("📜 Histórico de Movimentações")
     st.dataframe(df_mov, use_container_width=True, hide_index=True)
     st.download_button("Baixar Histórico (CSV)", df_mov.to_csv(index=False), "historico_estoque.csv")
+
 
