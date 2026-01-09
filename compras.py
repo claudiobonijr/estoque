@@ -73,7 +73,7 @@ elif aba_selecionada == "📦 Cadastro & Importação":
                 if cod and desc:
                     novo = pd.DataFrame([{"codigo": cod, "descricao": desc}])
                     updated = pd.concat([df_prod, novo], ignore_index=True)
-                    conn.update(worksheet="produtos", data=updated, spreadsheet=st.secrets["gsheets_url"])
+                    conn.update(worksheet="produtos", data=updated)
                     st.success("Item cadastrado!")
                     st.rerun()
                 else:
@@ -119,7 +119,7 @@ elif aba_selecionada == "📥 Entrada de Material":
                 }])
                 # LINHA CORRIGIDA ABAIXO:
                 mov_atualizada = pd.concat([df_mov, nova_mov], ignore_index=True)
-                conn.update(worksheet="movimentacoes", data=mov_atualizada, spreadsheet=st.secrets["gsheets_url"])
+                conn.update(worksheet="movimentacoes", data=mov_atualizada)
                 st.success("Entrada salva na nuvem!")
 
 # --- SAÍDA ---
@@ -145,7 +145,7 @@ elif aba_selecionada == "📤 Saída/Aplicação":
                     "descricao": item.split(" - ")[1], "quantidade": qtd
                 }])
                 mov_atualizada = pd.concat([df_mov, nova_mov], ignore_index=True)
-                conn.update(worksheet="movimentacoes", data=mov_atualizada, spreadsheet=st.secrets["gsheets_url"])
+                conn.update(worksheet="movimentacoes", data=mov_atualizada)
                 st.warning("Saída registrada!")
 
 # --- HISTÓRICO ---
@@ -153,3 +153,4 @@ elif aba_selecionada == "📜 Histórico Geral":
     st.title("📜 Histórico de Movimentações")
     st.dataframe(df_mov, use_container_width=True, hide_index=True)
     st.download_button("Baixar Histórico (CSV)", df_mov.to_csv(index=False), "historico_estoque.csv")
+
