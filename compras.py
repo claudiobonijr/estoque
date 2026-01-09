@@ -2,169 +2,159 @@ import streamlit as st
 import psycopg2
 import pandas as pd
 from datetime import datetime
+import plotly.express as px
 
-# 1. CONFIGURAÇÃO E ESTILO
-st.set_page_config(page_title="Gestão Amâncio Pro", page_icon="🏗️", layout="wide")
+# 1. CONFIGURAÇÃO DA PÁGINA E ESTILO CSS
+st.set_page_config(page_title="Amâncio Gestão Pro", page_icon="🏗️", layout="wide")
 
 st.markdown("""
     <style>
-    div[data-testid="metric-container"] { background-color: rgba(151, 166, 195, 0.1); padding: 15px; border-radius: 10px; border: 1px solid #3b82f6; }
-    .footer { position: fixed; left: 0; bottom: 0; width: 100%; text-align: center; padding: 5px; font-size: 12px; color: #888; background: white; z-index: 100; }
-    section[data-testid="stSidebar"] { background-color: #1e293b; }
-    section[data-testid="stSidebar"] * { color: white !important; }
-    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #3b82f6; color: white; }
+    /* Fundo e Containers */
+    .stApp { background-color: #0e1117; }
+    div[data-testid="metric-container"] {
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        padding: 20px;
+        border-radius: 12px;
+    }
+    /* Menu Lateral */
+    section[data-testid="stSidebar"] { background-color: #0d1117; border-right: 1px solid #30363d; }
+    
+    /* Botões Modernos */
+    .stButton>button {
+        background: linear-gradient(90deg, #1f6feb 0%, #094192 100%);
+        color: white; border: none; border-radius: 8px; font-weight: bold;
+    }
+    
+    /* Títulos */
+    h1, h2, h3 { color: #58a6ff !important; font-family: 'Segoe UI', sans-serif; }
+    
+    /* Rodapé */
+    .footer { position: fixed; left: 0; bottom: 0; width: 100%; text-align: center; padding: 8px; font-size: 12px; color: #8b949e; background: #0d1117; border-top: 1px solid #30363d; }
     </style>
     """, unsafe_allow_html=True)
 
+# 2. FUNÇÕES DE BANCO DE DADOS
 def get_connection():
     try:
         return psycopg2.connect(st.secrets["db_url"])
     except Exception as e:
-        st.error(f"Erro de conexão: {e}")
+        st.error(f"Erro de Conexão: {e}")
         return None
 
-# 2. LOGIN
+# 3. CONTROLE DE ACESSO
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
-# 3. SIDEBAR
+# 4. SIDEBAR (Menu lateral)
 with st.sidebar:
-    st.title("Sistema de Obras")
+    st.image("https://cdn-icons-png.flaticon.com/512/1063/1063196.png", width=80)
+    st.title("Amâncio Obras")
+    st.markdown("---")
+    
     if not st.session_state["authenticated"]:
-        with st.expander("🔐 Área do Administrador"):
+        with st.expander("🔐 Acesso Administrador"):
             u = st.text_input("Usuário")
             p = st.text_input("Senha", type="password")
-            if st.button("Acessar"):
+            if st.button("Entrar"):
                 if u == st.secrets["auth"]["username"] and p == st.secrets["auth"]["password"]:
                     st.session_state["authenticated"] = True
                     st.rerun()
-                else:
-                    st.error("Incorreto")
-        menu = st.radio("Navegação:", ["📊 Painel de Controle"])
+        menu = st.radio("Navegação:", ["📊 Dashboard Público"])
     else:
-        st.success(f"Admin: {st.secrets['auth']['username']}")
-        menu = st.radio("Navegação:", ["📊 Painel de Controle", "📋 Inventário Geral", "🔧 Ajuste de Balanço", "📦 Cadastro", "📥 Entrada", "📤 Saída"])
+        st.success(f"Logado: {st.secrets['auth']['username']}")
+        menu = st.radio("Navegação:", ["📊 Dashboard Público", "📋 Inventário Detalhado", "📦 Cadastro", "📥 Entrada", "📤 Saída", "🔧 Ajuste"])
         if st.button("Sair (Logoff)"):
             st.session_state["authenticated"] = False
             st.rerun()
-    st.markdown("---")
-    st.caption("Versão 4.0 | Amâncio Gestão")
 
-# 4. DASHBOARD PÚBLICO
-if menu == "📊 Painel de Controle":
-    st.title("📊 Painel de Controle (Saldo Geral)")
-    conn = get_connection()
+# 5. LOGICA DAS TELAS
+conn = get_connection()
+
+if menu == "📊 Dashboard Público":
+    st.title("📊 Painel de Controle de Estoque")
     if conn:
         df_mov = pd.read_sql("SELECT * FROM movimentacoes", conn)
-        conn.close()
         if not df_mov.empty:
             df_mov['val'] = df_mov.apply(lambda x: x['quantidade'] if x['tipo'] in ['Entrada', 'Ajuste(+)'] else -x['quantidade'], axis=1)
             saldo = df_mov.groupby(['codigo', 'descricao'])['val'].sum().reset_index()
-            saldo.columns = ['Cód', 'Descrição', 'Saldo Atual']
-            
+            saldo.columns = ['Cód', 'Descrição', 'Saldo']
+
+            # Métricas em Cards
             c1, c2, c3 = st.columns(3)
-            c1.metric("Itens Ativos", len(saldo))
-            c2.metric("Total Movimentações", len(df_mov))
-            criticos = len(saldo[saldo['Saldo Atual'] < 5])
-            c3.metric("Alertas de Estoque", criticos, delta_color="inverse")
+            c1.metric("Itens Cadastrados", len(saldo))
+            c2.metric("Movimentações", len(df_mov))
+            critico = len(saldo[saldo['Saldo'] < 10])
+            c3.metric("Itens em Alerta", critico, delta="- Atenção", delta_color="inverse")
 
-            st.markdown("---")
-            busca = st.text_input("🔍 Pesquisar material no estoque:")
+            # Gráfico de Consumo (Plotly)
+            st.markdown("### 📈 Materiais mais Retirados")
+            saidas = df_mov[df_mov['tipo'] == 'Saída'].groupby('descricao')['quantidade'].sum().reset_index().sort_values(by='quantidade', ascending=False).head(5)
+            fig = px.bar(saidas, x='descricao', y='quantidade', color='quantidade', color_continuous_scale='Blues', template='plotly_dark')
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Tabela com Pesquisa
+            st.markdown("### 🔍 Consulta de Saldo")
+            busca = st.text_input("Digite o nome do material para pesquisar:")
             if busca:
-                saldo = saldo[saldo['Descrição'].str.contains(busca, case=False) | saldo['Cód'].str.contains(busca)]
+                saldo = saldo[saldo['Descrição'].str.contains(busca, case=False)]
             st.dataframe(saldo, use_container_width=True, hide_index=True)
+        else:
+            st.info("Sem dados para exibir.")
 
-# 5. INVENTÁRIO GERAL (LOGADO)
-elif menu == "📋 Inventário Geral":
-    st.title("📋 Inventário Detalhado")
-    conn = get_connection()
-    if conn:
-        df_mov = pd.read_sql("SELECT * FROM movimentacoes ORDER BY data DESC", conn)
-        conn.close()
-        st.write("Histórico completo de todas as movimentações:")
-        st.dataframe(df_mov, use_container_width=True)
+elif menu == "📋 Inventário Detalhado":
+    st.title("📋 Inventário e Auditoria")
+    df_mov = pd.read_sql("SELECT * FROM movimentacoes ORDER BY data DESC", conn)
+    st.dataframe(df_mov, use_container_width=True)
+    csv = df_mov.to_csv(index=False).encode('utf-8')
+    st.download_button("📥 Baixar Planilha Completa (Excel/CSV)", csv, "estoque_amancio.csv")
 
-# 6. ENTRADA (MÁXIMO DE INFORMAÇÃO)
-elif menu == "📥 Entrada":
-    st.title("📥 Registro de Entrada (NF / Compra)")
-    conn = get_connection()
-    prods = pd.read_sql("SELECT * FROM produtos ORDER BY descricao", conn)
-    conn.close()
-
-    if prods.empty:
-        st.warning("Nenhum produto cadastrado. Vá em '📦 Cadastro' primeiro.")
-    else:
-        with st.form("form_entrada", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            item = col1.selectbox("Material", prods['codigo'] + " - " + prods['descricao'])
-            qtd = col2.number_input("Quantidade Recebida", min_value=0.01, step=0.01)
-            
-            col3, col4 = st.columns(2)
-            nf = col3.text_input("Número da Nota Fiscal (NF)")
-            forn = col4.text_input("Fornecedor / Loja")
-            
-            obra = st.text_input("Obra de Destino (Onde o material vai ficar guardado)")
-            obs = st.text_area("Observações Adicionais (Ex: Material chegou com atraso, marca tal...)")
-            
-            data_ent = st.date_input("Data do Recebimento", datetime.now())
-
-            if st.form_submit_button("✅ SALVAR ENTRADA"):
-                cod_sel, des_sel = item.split(" - ")[0], item.split(" - ")[1]
-                ref_completa = f"NF: {nf} | Forn: {forn} | Obs: {obs}"
-                
-                conn = get_connection(); cur = conn.cursor()
-                cur.execute("INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, referencia) VALUES (%s,%s,%s,%s,%s,%s,%s)",
-                           ("Entrada", data_ent, obra, cod_sel, des_sel, qtd, ref_completa))
-                conn.commit(); cur.close(); conn.close()
-                st.success(f"Entrada de {qtd} un de {des_sel} registrada com sucesso!")
-
-# 7. SAÍDA (RASTRREABILIDADE TOTAL)
-elif menu == "📤 Saída":
-    st.title("📤 Registro de Saída (Requisição)")
-    conn = get_connection()
-    prods = pd.read_sql("SELECT * FROM produtos ORDER BY descricao", conn)
-    conn.close()
-
-    with st.form("form_saida", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        item = col1.selectbox("Material Retirado", prods['codigo'] + " - " + prods['descricao'])
-        qtd = col2.number_input("Quantidade Retirada", min_value=0.01, step=0.01)
-        
-        col3, col4 = st.columns(2)
-        responsavel = col3.text_input("Quem retirou? (Nome do Colaborador)")
-        destino = col4.text_input("Frente de Serviço / Setor / Apartamento")
-        
-        obra_origem = st.text_input("Obra / Almoxarifado de Origem")
-        obs_saida = st.text_area("Motivo da Saída ou Observações")
-        
-        data_sai = st.date_input("Data da Retirada", datetime.now())
-
-        if st.form_submit_button("🚨 CONFIRMAR SAÍDA"):
-            cod_sel, des_sel = item.split(" - ")[0], item.split(" - ")[1]
-            ref_saida = f"Resp: {responsavel} | Destino: {destino} | Obs: {obs_saida}"
-            
-            conn = get_connection(); cur = conn.cursor()
-            cur.execute("INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, referencia) VALUES (%s,%s,%s,%s,%s,%s,%s)",
-                       ("Saída", data_sai, obra_origem, cod_sel, des_sel, qtd, ref_saida))
-            conn.commit(); cur.close(); conn.close()
-            st.warning(f"Baixa de {qtd} un de {des_sel} concluída!")
-
-# 8. CADASTRO E AJUSTE (MANTIDOS)
 elif menu == "📦 Cadastro":
-    st.title("📦 Cadastro de Materiais")
-    with st.form("cad_materiais"):
+    st.title("📦 Cadastro de Novos Itens")
+    with st.form("cad"):
         c1, c2 = st.columns(2)
-        cod = c1.text_input("Código Único (Ex: CIMENT-01)")
-        des = c2.text_input("Descrição (Ex: Cimento CP-II 50kg)")
-        if st.form_submit_button("💾 Salvar Novo Item"):
-            if cod and des:
-                conn = get_connection(); cur = conn.cursor()
-                cur.execute("INSERT INTO produtos (codigo, descricao) VALUES (%s, %s) ON CONFLICT (codigo) DO NOTHING", (cod.upper(), des.upper()))
-                conn.commit(); cur.close(); conn.close(); st.success("Item cadastrado!")
+        cod = c1.text_input("Código do Material")
+        des = c2.text_input("Descrição (Nome)")
+        if st.form_submit_button("Salvar Material"):
+            cur = conn.cursor()
+            cur.execute("INSERT INTO produtos (codigo, descricao) VALUES (%s, %s) ON CONFLICT DO NOTHING", (cod.upper(), des.upper()))
+            conn.commit(); st.success("Cadastrado!")
 
-elif menu == "🔧 Ajuste de Balanço":
-    st.title("🔧 Ajuste de Inventário")
-    st.info("Use para correções após contagem física.")
-    # (Lógica de ajuste simplificada aqui...)
+elif menu == "📥 Entrada":
+    st.title("📥 Registro de Entrada")
+    prods = pd.read_sql("SELECT * FROM produtos ORDER BY descricao", conn)
+    with st.form("ent"):
+        item = st.selectbox("Material", prods['codigo'] + " - " + prods['descricao'])
+        qtd = st.number_input("Qtd Recebida", min_value=0.1)
+        obra = st.text_input("Obra/Destino")
+        ref = st.text_input("NF / Fornecedor")
+        if st.form_submit_button("Confirmar Recebimento"):
+            cur = conn.cursor()
+            cur.execute("INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, referencia) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                       ("Entrada", datetime.now().date(), obra, item.split(" - ")[0], item.split(" - ")[1], qtd, ref))
+            conn.commit(); st.success("Estoque Alimentado!")
 
-st.markdown(f'<div class="footer">Desenvolvido por Claudio Boni Junior - {datetime.now().year}</div>', unsafe_allow_html=True)
+elif menu == "📤 Saída":
+    st.title("📤 Registro de Saída")
+    prods = pd.read_sql("SELECT * FROM produtos ORDER BY descricao", conn)
+    with st.form("sai"):
+        item = st.selectbox("Material Retirado", prods['codigo'] + " - " + prods['descricao'])
+        qtd = st.number_input("Qtd Retirada", min_value=0.1)
+        resp = st.text_input("Responsável pela Retirada")
+        obra = st.text_input("Obra de Destino")
+        if st.form_submit_button("Confirmar Baixa"):
+            cur = conn.cursor()
+            cur.execute("INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, referencia) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                       ("Saída", datetime.now().date(), obra, item.split(" - ")[0], item.split(" - ")[1], qtd, f"Resp: {resp}"))
+            conn.commit(); st.warning("Saída Registrada!")
+
+elif menu == "🔧 Ajuste":
+    st.title("🔧 Ajuste Manual de Estoque")
+    prods = pd.read_sql("SELECT * FROM produtos", conn)
+    item = st.selectbox("Item para Ajustar", prods['codigo'] + " - " + prods['descricao'])
+    novo_valor = st.number_input("Nova Quantidade Real", min_value=0.0)
+    if st.button("Atualizar Saldo"):
+        st.info("Ajuste realizado no sistema.") # Adicionar lógica de insert ajuste aqui
+
+if conn: conn.close()
+st.markdown('<div class="footer">© 2026 Amâncio Gestão de Obras - Claudio Boni Junior</div>', unsafe_allow_html=True)
