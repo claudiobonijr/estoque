@@ -8,7 +8,7 @@ st.set_page_config(page_title="Controle de Estoque Amâncio", page_icon="", layo
 
 # 2. PERSONALIZAÇÃO DE LOGO E CORES
 # COLOQUE O LINK DA SUA LOGO ABAIXO
-logo_url = "https://cdn-icons-png.flaticon.com/512/4222/4222961.png" 
+logo_url = "https://github.com/claudiobonijr/estoque/blob/b844f6b03200868a1dfe94a1e0056c0f333c4f06/logo.png" 
 
 st.markdown("""
     <style>
@@ -139,3 +139,4 @@ elif menu == "📤 Registrar Saída":
                 cur.close()
                 conn.close()
                 st.info("Saída registrada com sucesso!")
+
