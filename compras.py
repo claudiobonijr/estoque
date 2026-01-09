@@ -8,7 +8,7 @@ st.set_page_config(page_title="Gestão de Estoque Pro", page_icon="🏗️", lay
 
 # 2. LOGO E PERSONALIZAÇÃO VISUAL
 # Para trocar a logo, substitua o link abaixo pelo link da sua imagem
-logo_url = "https://cdn-icons-png.flaticon.com/512/4222/4222961.png"
+logo_url = "https://media.discordapp.net/attachments/1287152284328919116/1459226633025224879/Design-sem-nome-1.png?ex=69628234&is=696130b4&hm=460d0214e433068507b61d26f3ae1957e36d7a9480bf97e899ef3ae70303f294&=&format=webp&quality=lossless&width=600&height=158"
 
 st.markdown("""
     <style>
@@ -166,3 +166,4 @@ elif menu == "📤 Saída":
                 st.info("Saída registrada!")
     else:
         st.warning("Cadastre produtos para habilitar a saída.")
+
