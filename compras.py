@@ -166,5 +166,15 @@ elif menu == "📤 Saída":
                 st.info("Saída registrada!")
     else:
         st.warning("Cadastre produtos para habilitar a saída.")
+        
+# --- 7. RODAPÉ FIXO ---
+st.markdown(
+    """
+    <div class="footer">
+        <p>Desenvolvido por Claudio Boni Junior</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 
