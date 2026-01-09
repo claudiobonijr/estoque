@@ -4,37 +4,65 @@ import pandas as pd
 from datetime import datetime
 
 # 1. CONFIGURAÇÃO DA PÁGINA
-st.set_page_config(page_title="Controle de Estoque Amâncio", page_icon="", layout="wide")
+st.set_page_config(page_title="Gestão de Estoque Pro", page_icon="🏗️", layout="wide")
 
-# 2. PERSONALIZAÇÃO DE LOGO E CORES
-# COLOQUE O LINK DA SUA LOGO ABAIXO
-logo_url = "https://github.com/claudiobonijr/estoque/blob/b844f6b03200868a1dfe94a1e0056c0f333c4f06/logo.png" 
+# 2. LOGO E PERSONALIZAÇÃO VISUAL
+# Para trocar a logo, substitua o link abaixo pelo link da sua imagem
+logo_url = "https://cdn-icons-png.flaticon.com/512/4222/4222961.png"
 
 st.markdown("""
     <style>
-    [data-testid="stSidebar"] { background-color: #1e293b; color: white; }
-    [data-testid="stSidebar"] * { color: white !important; }
-    .stButton>button { border-radius: 8px; height: 3em; background-color: #3b82f6; color: white; font-weight: bold; border: none; }
-    .stButton>button:hover { background-color: #2563eb; border: none; }
-    .metric-card { background-color: #ffffff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
+    /* Estilização dos cards de métricas */
+    div[data-testid="metric-container"] {
+        background-color: rgba(151, 166, 195, 0.15);
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid rgba(151, 166, 195, 0.2);
+    }
+    /* Títulos das métricas */
+    [data-testid="stMetricLabel"] {
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+    }
+    /* Estilo do menu lateral */
+    section[data-testid="stSidebar"] {
+        background-color: #1e293b;
+    }
+    section[data-testid="stSidebar"] * {
+        color: white !important;
+    }
+    /* Botões personalizados */
+    .stButton>button {
+        border-radius: 8px;
+        background-color: #3b82f6;
+        color: white;
+        font-weight: bold;
+        border: none;
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        background-color: #2563eb;
+        transform: translateY(-1px);
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. FUNÇÕES DE BANCO DE DADOS
+# 3. FUNÇÃO DE CONEXÃO COM O BANCO (RENDER)
 def get_connection():
     return psycopg2.connect(st.secrets["db_url"])
 
-# 4. SIDEBAR COM SUA LOGO
+# 4. SIDEBAR (MENU LATERAL)
 with st.sidebar:
-    st.image(logo_url, width=120)
-    st.title("Gestão de Obras")
+    st.image(logo_url, width=110)
+    st.title("Sistema de Obras")
     st.markdown("---")
-    menu = st.radio("Navegação Principal", ["📊 Painel de Controle", "📦 Cadastro de Insumos", "📥 Registrar Entrada", "📤 Registrar Saída"])
+    menu = st.radio("Selecione uma Opção:", 
+                    ["📊 Dashboard", "📦 Cadastro", "📥 Entrada", "📤 Saída"])
     st.markdown("---")
-    st.caption("Versão 2.0 - Banco SQL")
+    st.caption("Versão 2.1 | Banco SQL Online")
 
-# 5. LÓGICA DO SISTEMA
-if menu == "📊 Painel de Controle":
+# 5. LÓGICA DO DASHBOARD
+if menu == "📊 Dashboard":
     st.title("📊 Painel de Controle")
     
     try:
@@ -43,39 +71,37 @@ if menu == "📊 Painel de Controle":
         conn.close()
 
         if not df_mov.empty:
-            # Cálculos de Saldo
-            df_mov['val'] = df_mov.apply(lambda x: x['quantidade'] if x['tipo'] == 'Entrada' else -x['quantidade'], axis=1)
-            resumo = df_mov.groupby(['codigo', 'descricao'])['val'].sum().reset_index()
-            resumo.columns = ['Cód', 'Descrição', 'Saldo Atual']
+            # Cálculo do Saldo Real
+            df_mov['val_ajustada'] = df_mov.apply(lambda x: x['quantidade'] if x['tipo'] == 'Entrada' else -x['quantidade'], axis=1)
+            saldo_df = df_mov.groupby(['codigo', 'descricao'])['val_ajustada'].sum().reset_index()
+            saldo_df.columns = ['Cód', 'Descrição', 'Saldo Atual']
 
-            # Exibição de Métricas em Cards
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                st.markdown(f'<div class="metric-card"><h3>📦 Itens</h3><h2>{len(resumo)}</h2></div>', unsafe_allow_html=True)
-            with c2:
-                total_mov = len(df_mov)
-                st.markdown(f'<div class="metric-card"><h3>🔄 Movimentações</h3><h2>{total_mov}</h2></div>', unsafe_allow_html=True)
-            with c3:
-                baixo_estoque = len(resumo[resumo['Saldo Atual'] < 5])
-                st.markdown(f'<div class="metric-card"><h3>⚠️ Alerta Crítico</h3><h2>{baixo_estoque}</h2></div>', unsafe_allow_html=True)
+            # LINHA DE MÉTRICAS
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Itens Cadastrados", len(saldo_df))
+            col2.metric("Total de Movimentações", len(df_mov))
+            col3.metric("Estoque Baixo (< 5)", len(saldo_df[saldo_df['Saldo Atual'] < 5]))
 
-            st.markdown("### Detalhamento do Inventário")
-            st.dataframe(resumo, use_container_width=True, hide_index=True)
+            st.markdown("---")
+            st.subheader("📋 Inventário Detalhado")
+            st.dataframe(saldo_df, use_container_width=True, hide_index=True)
+            
         else:
-            st.info("O estoque está vazio. Comece cadastrando produtos e registrando entradas.")
-    except:
-        st.error("Erro ao carregar dados. Verifique a conexão.")
+            st.info("Nenhuma movimentação registrada no banco de dados.")
+    except Exception as e:
+        st.error(f"Erro ao conectar ao banco de dados: {e}")
 
-elif menu == "📦 Cadastro de Insumos":
-    st.title("📦 Cadastro de Insumos")
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        with st.form("cad", clear_on_submit=True):
-            st.subheader("Novo Produto")
-            c_cod = st.text_input("Código Único")
-            c_des = st.text_input("Descrição do Material")
-            if st.form_submit_button("Finalizar Cadastro"):
+# 6. LÓGICA DE CADASTRO
+elif menu == "📦 Cadastro":
+    st.title("📦 Cadastro de Materiais")
+    with st.container():
+        with st.form("form_cad", clear_on_submit=True):
+            st.subheader("Informações do Insumo")
+            col1, col2 = st.columns(2)
+            c_cod = col1.text_input("Código do Material (Ex: 001)")
+            c_des = col2.text_input("Descrição (Ex: Cimento CP-II)")
+            
+            if st.form_submit_button("Registrar no Banco"):
                 if c_cod and c_des:
                     conn = get_connection()
                     cur = conn.cursor()
@@ -83,54 +109,53 @@ elif menu == "📦 Cadastro de Insumos":
                     conn.commit()
                     cur.close()
                     conn.close()
-                    st.success("Produto cadastrado!")
+                    st.success(f"O item '{c_des}' foi salvo com sucesso!")
                 else:
-                    st.warning("Preencha todos os campos.")
+                    st.warning("Preencha todos os campos obrigatórios.")
 
-elif menu == "📥 Registrar Entrada":
-    st.title("📥 Registro de Entrada")
+# 7. LÓGICA DE ENTRADA
+elif menu == "📥 Entrada":
+    st.title("📥 Registrar Entrada de Material")
     conn = get_connection()
-    prods = pd.read_sql("SELECT * FROM produtos ORDER BY descricao", conn)
+    df_p = pd.read_sql("SELECT * FROM produtos ORDER BY descricao", conn)
     conn.close()
 
-    if not prods.empty:
-        with st.container():
-            with st.form("ent", clear_on_submit=True):
-                col1, col2 = st.columns(2)
-                item = col1.selectbox("Selecione o Insumo", prods['codigo'] + " - " + prods['descricao'])
-                qtd = col1.number_input("Quantidade", min_value=0.01)
-                obra = col2.text_input("Obra Destino")
-                ref = col2.text_input("NF ou Ordem de Compra")
-                
-                if st.form_submit_button("Confirmar Entrada"):
-                    conn = get_connection()
-                    cur = conn.cursor()
-                    cur.execute("INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, referencia) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                               ("Entrada", datetime.now().date(), obra, item.split(" - ")[0], item.split(" - ")[1], qtd, ref))
-                    conn.commit()
-                    cur.close()
-                    conn.close()
-                    st.success("Estoque atualizado!")
-    else:
-        st.warning("Cadastre produtos antes de registrar movimentações.")
-
-elif menu == "📤 Registrar Saída":
-    st.title("📤 Registrar Saída")
-    # Mesma lógica da entrada, apenas mudando o tipo para "Saída"
-    # Adicionado campo de responsável ou destino específico
-    conn = get_connection()
-    prods = pd.read_sql("SELECT * FROM produtos ORDER BY descricao", conn)
-    conn.close()
-
-    if not prods.empty:
-        with st.form("sai", clear_on_submit=True):
+    if not df_p.empty:
+        with st.form("form_ent", clear_on_submit=True):
+            item = st.selectbox("Selecione o Insumo", df_p['codigo'] + " - " + df_p['descricao'])
             col1, col2 = st.columns(2)
-            item = col1.selectbox("Item Saindo", prods['codigo'] + " - " + prods['descricao'])
-            qtd = col1.number_input("Qtd aplicada", min_value=0.01)
-            obra = col2.text_input("Frente de Serviço")
-            resp = col2.text_input("Encarregado/Responsável")
+            qtd = col1.number_input("Quantidade", min_value=0.01)
+            obra = col1.text_input("Obra de Destino")
+            ref = col2.text_input("Nº da Nota Fiscal / OC")
             
-            if st.form_submit_button("Baixar Estoque"):
+            if st.form_submit_button("Confirmar Entrada"):
+                conn = get_connection()
+                cur = conn.cursor()
+                cur.execute("INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, referencia) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                           ("Entrada", datetime.now().date(), obra, item.split(" - ")[0], item.split(" - ")[1], qtd, ref))
+                conn.commit()
+                cur.close()
+                conn.close()
+                st.success("Estoque atualizado!")
+    else:
+        st.error("Nenhum produto cadastrado no sistema.")
+
+# 8. LÓGICA DE SAÍDA
+elif menu == "📤 Saída":
+    st.title("📤 Registrar Saída / Aplicação")
+    conn = get_connection()
+    df_p = pd.read_sql("SELECT * FROM produtos ORDER BY descricao", conn)
+    conn.close()
+
+    if not df_p.empty:
+        with st.form("form_sai", clear_on_submit=True):
+            item = st.selectbox("Insumo Aplicado", df_p['codigo'] + " - " + df_p['descricao'])
+            col1, col2 = st.columns(2)
+            qtd = col1.number_input("Quantidade Utilizada", min_value=0.01)
+            obra = col2.text_input("Frente de Serviço / Obra")
+            resp = col2.text_input("Responsável pela Retirada")
+            
+            if st.form_submit_button("Dar Baixa no Estoque"):
                 conn = get_connection()
                 cur = conn.cursor()
                 cur.execute("INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, referencia) VALUES (%s, %s, %s, %s, %s, %s, %s)",
@@ -138,5 +163,6 @@ elif menu == "📤 Registrar Saída":
                 conn.commit()
                 cur.close()
                 conn.close()
-                st.info("Saída registrada com sucesso!")
-
+                st.info("Saída registrada!")
+    else:
+        st.warning("Cadastre produtos para habilitar a saída.")
