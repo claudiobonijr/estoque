@@ -4,33 +4,51 @@ import pandas as pd
 from datetime import datetime
 import plotly.express as px
 
-# 1. CONFIGURAÇÃO DA PÁGINA E ESTILO CSS
-st.set_page_config(page_title="Amâncio Gestão Pro", page_icon="🏗️", layout="wide")
-
+# --- CONFIGURAÇÃO DE TEMA ADAPTATIVO ---
 st.markdown("""
     <style>
-    /* Fundo e Containers */
-    .stApp { background-color: #0e1117; }
+    /* 1. VARIÁVEIS DE CORES (Mudam conforme o tema) */
+    :root {
+        --bg-color: #ffffff;
+        --text-color: #1e293b;
+        --card-bg: rgba(0, 0, 0, 0.05);
+        --border-color: rgba(0, 0, 0, 0.1);
+        --accent-color: #2563eb;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg-color: #0e1117;
+            --text-color: #f8fafc;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --border-color: rgba(255, 255, 255, 0.1);
+            --accent-color: #38bdf8;
+        }
+    }
+
+    /* 2. APLICAÇÃO NAS MÉTRICAS */
     div[data-testid="metric-container"] {
-        background-color: #161b22;
-        border: 1px solid #30363d;
-        padding: 20px;
+        background-color: var(--card-bg) !important;
+        border: 1px solid var(--border-color) !important;
         border-radius: 12px;
+        padding: 15px;
     }
-    /* Menu Lateral */
-    section[data-testid="stSidebar"] { background-color: #0d1117; border-right: 1px solid #30363d; }
-    
-    /* Botões Modernos */
-    .stButton>button {
-        background: linear-gradient(90deg, #1f6feb 0%, #094192 100%);
-        color: white; border: none; border-radius: 8px; font-weight: bold;
+
+    /* 3. TEXTOS ADAPTATIVOS */
+    [data-testid="stMetricValue"], [data-testid="stMetricLabel"], h1, h2, h3, p {
+        color: var(--text-color) !important;
+    }
+
+    /* 4. SIDEBAR RESPONSIVA */
+    section[data-testid="stSidebar"] {
+        border-right: 1px solid var(--border-color);
     }
     
-    /* Títulos */
-    h1, h2, h3 { color: #58a6ff !important; font-family: 'Segoe UI', sans-serif; }
-    
-    /* Rodapé */
-    .footer { position: fixed; left: 0; bottom: 0; width: 100%; text-align: center; padding: 8px; font-size: 12px; color: #8b949e; background: #0d1117; border-top: 1px solid #30363d; }
+    /* 5. TABELAS (Dataframes) */
+    .stDataFrame {
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -158,3 +176,4 @@ elif menu == "🔧 Ajuste":
 
 if conn: conn.close()
 st.markdown('<div class="footer">© 2026 Amâncio Gestão de Obras - Claudio Boni Junior</div>', unsafe_allow_html=True)
+
