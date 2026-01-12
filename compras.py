@@ -2,36 +2,91 @@ import streamlit as st
 import psycopg2
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime
 import time
 
 # -----------------------------------------------------------------------------
-# 1. CONFIGURAÇÃO
+# 1. CONFIGURAÇÃO PREMIUM
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Amâncio Obras - Portal",
+    page_title="Amâncio ERP",
     page_icon="🏗️",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide", # Tela cheia para o Painel ficar bonito
+    initial_sidebar_state="collapsed"
 )
 
-# Inicializa Carrinhos (Listas Temporárias)
+# --- CSS PROFISSIONAL (A MÁGICA VISUAL) ---
+st.markdown("""
+    <style>
+    /* Importando fonte moderna */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+    }
+
+    /* Cards de Métricas (KPIs) */
+    div[data-testid="metric-container"] {
+        background-color: #ffffff;
+        border: 1px solid #e0e0e0;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        transition: transform 0.2s;
+    }
+    div[data-testid="metric-container"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+        border-color: #2563eb;
+    }
+
+    /* Ajuste de Tabelas */
+    .stDataFrame {
+        border: 1px solid #f0f0f0;
+        border-radius: 10px;
+    }
+
+    /* Botões */
+    .stButton>button {
+        border-radius: 8px;
+        font-weight: 600;
+        height: 45px;
+    }
+    
+    /* Login Box Centralizado */
+    .login-container {
+        max-width: 400px;
+        margin: 0 auto;
+        padding: 40px;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+    
+    /* Esconder menu padrão do Streamlit para parecer App Nativo */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Centralizar Imagens */
+    .stImage { display: flex; justify-content: center; }
+    </style>
+""", unsafe_allow_html=True)
+
+# -----------------------------------------------------------------------------
+# 2. VARIÁVEIS DE SESSÃO & CONEXÃO
+# -----------------------------------------------------------------------------
 if "carrinho_entrada" not in st.session_state: st.session_state["carrinho_entrada"] = []
 if "carrinho_saida" not in st.session_state: st.session_state["carrinho_saida"] = []
 if "carrinho_ajuste" not in st.session_state: st.session_state["carrinho_ajuste"] = []
 if "authenticated" not in st.session_state: st.session_state["authenticated"] = False
 
-# -----------------------------------------------------------------------------
-# 2. CONEXÃO BLINDADA
-# -----------------------------------------------------------------------------
 def run_query(query, params=None, fetch_data=True):
     conn = None
     try:
-        conn = psycopg2.connect(
-            st.secrets["db_url"],
-            connect_timeout=10,
-            gssencmode="disable"
-        )
+        conn = psycopg2.connect(st.secrets["db_url"], connect_timeout=10, gssencmode="disable")
         if fetch_data:
             df = pd.read_sql(query, conn, params=params)
             return df
@@ -40,30 +95,38 @@ def run_query(query, params=None, fetch_data=True):
                 cur.execute(query, params)
                 conn.commit()
             return True
-    except Exception as e:
-        if fetch_data: return pd.DataFrame()
-        return False
+    except Exception:
+        return pd.DataFrame() if fetch_data else False
     finally:
         if conn: conn.close()
 
+def logo_dinamica(width=150):
+    # Insira aqui os links das suas logos reais
+    url_preta = "https://cdn-icons-png.flaticon.com/512/1063/1063196.png" # Logo para fundo claro
+    url_branca = "https://cdn-icons-png.flaticon.com/512/1063/1063196.png" # Logo para fundo escuro
+    
+    st.markdown(f"""
+    <div style="display: flex; justify-content: center; margin-bottom: 15px;">
+        <img src="{url_preta}" style="width: {width}px; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.1));">
+    </div>
+    """, unsafe_allow_html=True)
+
 # -----------------------------------------------------------------------------
-# 3. CARREGAMENTO DE DADOS (GLOBAL)
+# 3. INTELIGÊNCIA DE DADOS (ENGINE)
 # -----------------------------------------------------------------------------
 df_prods = run_query("SELECT codigo, descricao, unidade FROM produtos ORDER BY descricao")
 df_movs = run_query("SELECT * FROM movimentacoes ORDER BY data DESC, id DESC")
 
-# Cálculo de Saldo
+# Lógica Financeira Robusta
 saldo_atual = pd.DataFrame(columns=['Cod', 'Produto', 'Unid', 'Saldo', 'CustoMedio', 'ValorTotal'])
 
 if not df_prods.empty:
     if not df_movs.empty:
         df_calc = df_movs.copy()
-        # Entradas e Ajustes(+) somam. Saídas e Ajustes(-) subtraem.
         df_calc['fator'] = df_calc['tipo'].apply(lambda x: 1 if x in ['Entrada', 'Ajuste(+)'] else -1)
         df_calc['qtd_real'] = df_calc['quantidade'] * df_calc['fator']
         saldos = df_calc.groupby('codigo')['qtd_real'].sum().reset_index()
 
-        # Custo Médio
         entradas = df_movs[df_movs['tipo'] == 'Entrada'].copy()
         if not entradas.empty:
             entradas['total_gasto'] = entradas['quantidade'] * entradas['custo_unitario']
@@ -72,255 +135,266 @@ if not df_prods.empty:
             saldos = pd.merge(saldos, custos[['codigo', 'custo_medio']], on='codigo', how='left')
         
         saldo_atual = pd.merge(df_prods, saldos, on='codigo', how='left').fillna(0)
-        
         if 'custo_medio' not in saldo_atual.columns: saldo_atual['custo_medio'] = 0
         saldo_atual['valor_estoque'] = saldo_atual['qtd_real'] * saldo_atual['custo_medio']
     else:
         saldo_atual = df_prods.copy()
-        saldo_atual['qtd_real'] = 0; saldo_atual['custo_medio'] = 0; saldo_atual['valor_estoque'] = 0
-
-    saldo_atual.rename(columns={'qtd_real': 'Saldo', 'descricao': 'Produto', 'unidade': 'Unid', 'codigo': 'Cod'}, inplace=True)
-
-# -----------------------------------------------------------------------------
-# 4. BARRA LATERAL
-# -----------------------------------------------------------------------------
-with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/1063/1063196.png", width=60)
-    st.markdown("### Amâncio Obras")
+        saldo_atual[['Saldo', 'custo_medio', 'valor_estoque']] = 0
     
-    if not st.session_state["authenticated"]:
-        st.divider()
-        st.markdown("🔒 **Acesso Restrito**")
-        with st.form("login_sidebar"):
-            u = st.text_input("Usuário")
-            p = st.text_input("Senha", type="password")
-            if st.form_submit_button("Entrar"):
+    saldo_atual.rename(columns={'qtd_real': 'Saldo', 'descricao': 'Produto', 'unidade': 'Unid', 'codigo': 'Cod'}, inplace=True)
+    # Reordenar colunas para visualização
+    saldo_atual = saldo_atual[['Cod', 'Produto', 'Unid', 'Saldo', 'custo_medio', 'valor_estoque']]
+
+# -----------------------------------------------------------------------------
+# 4. TELA DE LOGIN (Clean & Minimalista)
+# -----------------------------------------------------------------------------
+if not st.session_state["authenticated"]:
+    c1, c2, c3 = st.columns([1, 1, 1])
+    with c2:
+        st.write(""); st.write(""); st.write("") # Espaçamento
+        logo_dinamica(width=120)
+        st.markdown("<h1 style='text-align: center; color: #1e293b; font-size: 24px;'>Portal Amâncio</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #64748b; font-size: 14px;'>Acesso Administrativo Seguro</p>", unsafe_allow_html=True)
+        
+        with st.form("login"):
+            u = st.text_input("Usuário", placeholder="ID Corporativo")
+            p = st.text_input("Senha", type="password", placeholder="••••••••")
+            
+            if st.form_submit_button("Entrar", type="primary"):
                 if u == st.secrets["auth"]["username"] and p == st.secrets["auth"]["password"]:
                     st.session_state["authenticated"] = True
                     st.rerun()
                 else:
-                    st.error("Erro no login")
-    else:
-        st.success(f"👤 Admin: {st.secrets['auth']['username'].upper()}")
-        st.divider()
-        menu = st.radio("Menu:", 
-                        ["📊 Dashboard Financeiro", 
-                         "🔄 Movimentações (Lote)", 
-                         "🗑️ Gerenciar / Excluir", 
-                         "⚙️ Histórico Completo"])
-        st.divider()
-        if st.button("Sair"):
+                    st.error("Credenciais Inválidas")
+        
+        st.markdown("---")
+        with st.expander("🔍 Consulta Pública (Engenharia)"):
+            if not saldo_atual.empty:
+                busca = st.text_input("Buscar Item:", placeholder="Digite o nome...")
+                df_view = saldo_atual[['Produto', 'Saldo', 'Unid']]
+                if busca: df_view = df_view[df_view['Produto'].str.contains(busca, case=False)]
+                st.dataframe(df_view, hide_index=True, use_container_width=True)
+            else:
+                st.info("Sistema aguardando dados.")
+
+# -----------------------------------------------------------------------------
+# 5. DASHBOARD EXECUTIVO (A Visão do Diretor)
+# -----------------------------------------------------------------------------
+else:
+    # --- SIDEBAR PROFISSIONAL ---
+    with st.sidebar:
+        logo_dinamica(width=100)
+        st.markdown(f"<div style='text-align: center; color: gray; margin-bottom: 20px;'>Olá, {st.secrets['auth']['username'].title()}</div>", unsafe_allow_html=True)
+        
+        menu = st.radio("", ["📊 Dashboard", "📦 Inventário", "🔄 Operações", "⚙️ Gerenciamento"], label_visibility="collapsed")
+        
+        st.write(""); st.write("") # Spacer
+        if st.button("Sair do Sistema"):
             st.session_state["authenticated"] = False
             st.rerun()
 
-# -----------------------------------------------------------------------------
-# 5. TELA PÚBLICA (VISITANTE)
-# -----------------------------------------------------------------------------
-if not st.session_state["authenticated"]:
-    st.title("📋 Estoque Disponível")
-    st.markdown("**Consulta Pública** - Atualização em Tempo Real")
-    
-    if not saldo_atual.empty:
-        c_busca, c_kpi = st.columns([2, 1])
-        with c_busca:
-            busca_pub = st.text_input("🔍 Pesquisar:", placeholder="Ex: Cimento...")
-        with c_kpi:
-            st.metric("Itens Cadastrados", len(saldo_atual))
+    # --- PÁGINA: DASHBOARD ---
+    if menu == "📊 Dashboard":
+        st.title("Visão Geral da Obra")
+        st.markdown(f"Atualizado em: *{datetime.now().strftime('%d/%m/%Y às %H:%M')}*")
+        st.write("")
 
-        df_publico = saldo_atual[['Cod', 'Produto', 'Unid', 'Saldo']].copy()
-        if busca_pub:
-            df_publico = df_publico[df_publico['Produto'].str.contains(busca_pub, case=False)]
-
-        st.dataframe(
-            df_publico,
-            use_container_width=True,
-            hide_index=True,
-            height=600,
-            column_config={
-                "Saldo": st.column_config.NumberColumn("Estoque Físico", format="%.2f"),
-                "Cod": st.column_config.TextColumn("Cód", width="small"),
-            }
-        )
-    else:
-        st.warning("Sem dados.")
-
-# -----------------------------------------------------------------------------
-# 6. ÁREA ADMIN (LOGADO)
-# -----------------------------------------------------------------------------
-else:
-    # --- DASHBOARD ---
-    if menu == "📊 Dashboard Financeiro":
-        st.title("📊 Painel Gerencial")
         if not saldo_atual.empty:
-            total_money = saldo_atual['valor_estoque'].sum()
-            zerados = len(saldo_atual[saldo_atual['Saldo'] <= 0])
+            # 1. CARDS DE KPI (RENTABILIDADE)
+            total_val = saldo_atual['valor_estoque'].sum()
+            criticos = len(saldo_atual[saldo_atual['Saldo'] <= 0])
+            top_item = saldo_atual.sort_values('valor_estoque', ascending=False).iloc[0]['Produto'] if total_val > 0 else "-"
             
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Total Itens", len(saldo_atual))
-            c2.metric("Valor Estoque", f"R$ {total_money:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-            c3.metric("Zerados", zerados, delta_color="inverse")
+            k1, k2, k3, k4 = st.columns(4)
+            k1.metric("Valor em Estoque", f"R$ {total_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), delta="Capital Imobilizado")
+            k2.metric("Itens Cadastrados", len(saldo_atual), delta="Mix de Produtos")
+            k3.metric("Item Mais Valioso", top_item)
+            k4.metric("Estoque Crítico", criticos, delta="- Reposição Necessária", delta_color="inverse")
+
+            st.write("") # Spacer
+
+            # 2. GRÁFICOS LADO A LADO
+            g1, g2 = st.columns([2, 1])
             
-            st.divider()
-            st.subheader("📦 Detalhe Financeiro")
+            with g1:
+                st.subheader("💰 Curva ABC (Onde está o dinheiro)")
+                if total_val > 0:
+                    df_graf = saldo_atual.nlargest(8, 'valor_estoque')
+                    fig = px.bar(df_graf, x='Produto', y='valor_estoque', text_auto='.2s', 
+                                 color='valor_estoque', color_continuous_scale='Blues')
+                    fig.update_layout(xaxis_title="", yaxis_title="Reais (R$)", plot_bgcolor="white")
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("Registre entradas com valor para ver o gráfico financeiro.")
+            
+            with g2:
+                st.subheader("📦 Movimentação Recente")
+                if not df_movs.empty:
+                    mov_counts = df_movs['tipo'].value_counts()
+                    fig2 = px.pie(values=mov_counts.values, names=mov_counts.index, hole=0.6, 
+                                  color_discrete_sequence=px.colors.qualitative.Pastel)
+                    fig2.update_layout(showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                    st.plotly_chart(fig2, use_container_width=True)
+                else:
+                    st.info("Sem dados.")
+
+    # --- PÁGINA: INVENTÁRIO (TABELA INTELIGENTE) ---
+    elif menu == "📦 Inventário":
+        c1, c2 = st.columns([4, 1])
+        with c1: st.title("Estoque & Custos")
+        with c2: 
+            # Botão de Exportação para o Diretor
+            if not saldo_atual.empty:
+                csv = saldo_atual.to_csv(index=False).encode('utf-8')
+                st.download_button("📥 Baixar Relatório", csv, "estoque_amancio.csv", "text/csv", type="primary")
+
+        if not saldo_atual.empty:
+            busca = st.text_input("🔍 Filtrar material...", placeholder="Ex: Cimento, Areia, Tubo...")
+            df_show = saldo_atual.copy()
+            if busca: df_show = df_show[df_show['Produto'].str.contains(busca, case=False)]
+            
             st.dataframe(
-                saldo_atual[['Cod', 'Produto', 'Saldo', 'custo_medio', 'valor_estoque']],
+                df_show,
                 use_container_width=True,
                 hide_index=True,
+                height=600,
                 column_config={
+                    "Saldo": st.column_config.NumberColumn("Qtd Física", format="%.2f"),
                     "custo_medio": st.column_config.NumberColumn("Custo Médio", format="R$ %.2f"),
-                    "valor_estoque": st.column_config.NumberColumn("Total Investido", format="R$ %.2f")
+                    "valor_estoque": st.column_config.NumberColumn("Valor Total", format="R$ %.2f"),
+                    "Cod": st.column_config.TextColumn("Código", width="small"),
+                    "Unid": st.column_config.TextColumn("Und", width="small"),
                 }
             )
+        else:
+            st.warning("Nenhum dado encontrado.")
 
-    # --- OPERAÇÕES (LOTE) ---
-    elif menu == "🔄 Movimentações (Lote)":
-        st.title("🔄 Central de Operações")
+    # --- PÁGINA: OPERAÇÕES (CAIXA RÁPIDO) ---
+    elif menu == "🔄 Operações":
+        st.title("Central de Operações")
         
-        tab_ent, tab_sai, tab_aj, tab_cad = st.tabs(["📥 ENTRADA", "📤 SAÍDA", "🔧 AJUSTE (Inventário)", "🆕 NOVO ITEM"])
-        
+        tab1, tab2, tab3, tab4 = st.tabs(["📥 ENTRADA (Compra)", "📤 SAÍDA (Obra)", "🔧 AJUSTE (Balanço)", "🆕 CADASTRO"])
         opcoes = [f"{r['codigo']} - {r['descricao']}" for i, r in df_prods.iterrows()] if not df_prods.empty else []
 
-        # 1. ENTRADA
-        with tab_ent:
-            c1, c2 = st.columns([1, 2])
-            with c1:
-                st.info("Adicionar Item")
-                with st.form("add_ent"):
-                    ie = st.selectbox("Item", opcoes)
-                    qe = st.number_input("Qtd", 0.01)
-                    ve = st.number_input("R$ Unitário", 0.0)
-                    if st.form_submit_button("⬇️ Incluir"):
+        # -- ENTRADA --
+        with tab1:
+            col_form, col_list = st.columns([1, 2])
+            with col_form:
+                st.markdown("##### Novo Item")
+                with st.form("add_e"):
+                    ie = st.selectbox("Material", opcoes)
+                    qe = st.number_input("Quantidade", 0.01)
+                    ve = st.number_input("Preço Unit. (R$)", 0.0)
+                    if st.form_submit_button("⬇️ Adicionar"):
                         if ie:
                             st.session_state["carrinho_entrada"].append({
-                                "cod": ie.split(" - ")[0], "desc": ie.split(" - ")[1], 
-                                "qtd": qe, "custo": ve, "total": qe*ve
+                                "cod": ie.split(" - ")[0], "desc": ie.split(" - ")[1], "qtd": qe, "custo": ve, "total": qe*ve
                             })
                             st.rerun()
-            with c2:
-                st.success("Lista de Entrada")
+            with col_list:
+                st.markdown("##### 🛒 Carrinho de Entrada")
                 if st.session_state["carrinho_entrada"]:
                     df_c = pd.DataFrame(st.session_state["carrinho_entrada"])
-                    st.dataframe(df_c, hide_index=True, use_container_width=True, 
-                               column_config={"custo": st.column_config.NumberColumn("R$", format="%.2f")})
-                    with st.form("save_ent"):
-                        nf = st.text_input("NF / Fornecedor")
-                        if st.form_submit_button("✅ FINALIZAR ENTRADA"):
+                    st.dataframe(df_c, hide_index=True, use_container_width=True, column_config={"custo": st.column_config.NumberColumn("R$", format="%.2f")})
+                    st.markdown(f"**Total da Nota: R$ {df_c['total'].sum():,.2f}**")
+                    
+                    with st.form("save_e"):
+                        nf = st.text_input("Número NF / Fornecedor")
+                        if st.form_submit_button("✅ Processar Entrada", type="primary"):
                             if nf:
                                 for i in st.session_state["carrinho_entrada"]:
                                     run_query("INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, custo_unitario, referencia) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)", 
                                               ("Entrada", datetime.now().date(), "CENTRAL", i['cod'], i['desc'], i['qtd'], i['custo'], nf), False)
                                 st.session_state["carrinho_entrada"] = []
-                                st.success("Salvo!"); time.sleep(1); st.rerun()
-                    if st.button("Limpar", key="cls_ent"): st.session_state["carrinho_entrada"] = []; st.rerun()
+                                st.toast("Entrada registrada com sucesso!", icon="🎉")
+                                time.sleep(1); st.rerun()
+                    if st.button("Limpar", key="cl1"): st.session_state["carrinho_entrada"] = []; st.rerun()
+                else: st.info("Adicione itens à esquerda.")
 
-        # 2. SAÍDA
-        with tab_sai:
-            c1, c2 = st.columns([1, 2])
-            with c1:
-                st.info("Adicionar Item")
-                with st.form("add_sai"):
-                    is_ = st.selectbox("Item", opcoes, key="s_i")
-                    qs = st.number_input("Qtd", 0.01, key="s_q")
-                    if st.form_submit_button("⬇️ Incluir"):
+        # -- SAÍDA --
+        with tab2:
+            col_form, col_list = st.columns([1, 2])
+            with col_form:
+                st.markdown("##### Novo Item")
+                with st.form("add_s"):
+                    is_ = st.selectbox("Material", opcoes, key="si")
+                    qs = st.number_input("Quantidade", 0.01, key="sq")
+                    if st.form_submit_button("⬇️ Adicionar"):
                         if is_:
-                            st.session_state["carrinho_saida"].append({
-                                "cod": is_.split(" - ")[0], "desc": is_.split(" - ")[1], "qtd": qs
-                            })
+                            st.session_state["carrinho_saida"].append({"cod": is_.split(" - ")[0], "desc": is_.split(" - ")[1], "qtd": qs})
                             st.rerun()
-            with c2:
-                st.warning("Lista de Saída")
+            with col_list:
+                st.markdown("##### 🚛 Romaneio de Saída")
                 if st.session_state["carrinho_saida"]:
                     st.dataframe(pd.DataFrame(st.session_state["carrinho_saida"]), hide_index=True, use_container_width=True)
-                    with st.form("save_sai"):
-                        ob = st.text_input("Destino / Obra")
-                        if st.form_submit_button("📤 FINALIZAR SAÍDA"):
+                    with st.form("save_s"):
+                        ob = st.text_input("Obra / Destino")
+                        if st.form_submit_button("📤 Processar Saída", type="primary"):
                             if ob:
                                 for i in st.session_state["carrinho_saida"]:
                                     run_query("INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, custo_unitario) VALUES (%s,%s,%s,%s,%s,%s,%s)", 
                                               ("Saída", datetime.now().date(), ob, i['cod'], i['desc'], i['qtd'], 0), False)
                                 st.session_state["carrinho_saida"] = []
-                                st.success("Baixado!"); time.sleep(1); st.rerun()
-                    if st.button("Limpar", key="cls_sai"): st.session_state["carrinho_saida"] = []; st.rerun()
+                                st.toast("Saída registrada!", icon="🚛")
+                                time.sleep(1); st.rerun()
+                    if st.button("Limpar", key="cl2"): st.session_state["carrinho_saida"] = []; st.rerun()
+                else: st.info("Adicione itens à esquerda.")
 
-        # 3. AJUSTE
-        with tab_aj:
-            st.markdown("Use para **Inventário Semanal** ou correção de diferenças.")
-            c1, c2 = st.columns([1, 2])
-            with c1:
-                st.info("Adicionar Diferença")
-                with st.form("add_aj"):
-                    ia = st.selectbox("Item", opcoes, key="a_i")
-                    st.caption("Use valor **Positivo** para adicionar e **Negativo** para remover.")
-                    qa = st.number_input("Diferença (Qtd)", step=1.0, key="a_q")
-                    mot = st.text_input("Motivo (Ex: Contagem)", key="a_m")
-                    
-                    if st.form_submit_button("⬇️ Incluir no Balanço"):
+        # -- AJUSTE --
+        with tab3:
+            col_form, col_list = st.columns([1, 2])
+            with col_form:
+                st.markdown("##### Correção")
+                with st.form("add_a"):
+                    ia = st.selectbox("Material", opcoes, key="ai")
+                    qa = st.number_input("Diferença (+/-)", step=1.0, key="aq")
+                    ma = st.text_input("Motivo", key="am")
+                    if st.form_submit_button("⬇️ Adicionar"):
                         if ia and qa != 0:
-                            st.session_state["carrinho_ajuste"].append({
-                                "cod": ia.split(" - ")[0], "desc": ia.split(" - ")[1], 
-                                "qtd": qa, "motivo": mot
-                            })
+                            st.session_state["carrinho_ajuste"].append({"cod": ia.split(" - ")[0], "desc": ia.split(" - ")[1], "qtd": qa, "motivo": ma})
                             st.rerun()
-            with c2:
-                st.warning("Lista de Ajustes (Balanço)")
+            with col_list:
+                st.markdown("##### ⚖️ Itens de Balanço")
                 if st.session_state["carrinho_ajuste"]:
                     st.dataframe(pd.DataFrame(st.session_state["carrinho_ajuste"]), hide_index=True, use_container_width=True)
-                    
-                    if st.button("⚖️ PROCESSAR AJUSTES"):
+                    if st.button("✅ Confirmar Ajustes", type="primary"):
                         for i in st.session_state["carrinho_ajuste"]:
                             tipo = "Ajuste(+)" if i['qtd'] > 0 else "Ajuste(-)"
                             run_query("INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, custo_unitario, referencia) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)", 
                                       (tipo, datetime.now().date(), "BALANÇO", i['cod'], i['desc'], abs(i['qtd']), 0, i['motivo']), False)
                         st.session_state["carrinho_ajuste"] = []
-                        st.success("Estoque Corrigido!"); time.sleep(1); st.rerun()
-
-                    if st.button("Limpar", key="cls_aj"): st.session_state["carrinho_ajuste"] = []; st.rerun()
-                else:
-                    st.info("Nenhum ajuste pendente.")
-
-        # 4. CADASTRO
-        with tab_cad:
-            with st.form("cad_new"):
-                c1,c2,c3 = st.columns([1,2,1])
-                cod = c1.text_input("Código").upper()
-                des = c2.text_input("Descrição").upper()
-                und = c3.selectbox("Und", ["UNID", "KG", "M", "M2", "M3", "SC", "CX"])
-                if st.form_submit_button("Salvar"):
-                    run_query("INSERT INTO produtos (codigo, descricao, unidade) VALUES (%s,%s,%s) ON CONFLICT (codigo) DO NOTHING", (cod, des, und), False)
-                    st.success("Cadastrado!"); time.sleep(1); st.rerun()
-
-    # --- GERENCIAR / EXCLUIR ---
-    elif menu == "🗑️ Gerenciar / Excluir":
-        st.title("🗑️ Histórico e Correções")
-        st.warning("A exclusão é permanente.")
+                        st.toast("Estoque corrigido!", icon="✅"); time.sleep(1); st.rerun()
+                    if st.button("Limpar", key="cl3"): st.session_state["carrinho_ajuste"] = []; st.rerun()
         
-        if not df_movs.empty:
-            filtro = st.text_input("Filtrar:", placeholder="Ex: Cimento, Entrada...")
-            df_del = df_movs.copy()
-            if filtro:
-                df_del = df_del[
-                    df_del['descricao'].str.contains(filtro, case=False) | 
-                    df_del['tipo'].str.contains(filtro, case=False)
-                ]
-            
-            st.dataframe(df_del, use_container_width=True, hide_index=True)
-            
-            st.divider()
-            c_del1, c_del2 = st.columns([1, 2])
-            with c_del1:
-                id_to_del = st.number_input("ID para excluir:", min_value=0, step=1)
-                if st.button("❌ APAGAR REGISTRO", type="primary"):
-                    if id_to_del > 0:
-                        run_query("DELETE FROM movimentacoes WHERE id = %s", (id_to_del,), False)
-                        st.success("Apagado!"); time.sleep(1); st.rerun()
-        else:
-            st.info("Vazio.")
+        # -- CADASTRO --
+        with tab4:
+            st.markdown("##### Novo Produto")
+            with st.form("cad_n"):
+                c1, c2, c3 = st.columns([1, 2, 1])
+                cod = c1.text_input("Código (Ex: CIM-01)").upper()
+                des = c2.text_input("Descrição").upper()
+                und = c3.selectbox("Und", ["UNID", "KG", "M", "M2", "M3", "SC", "CX", "L"])
+                if st.form_submit_button("💾 Salvar Produto"):
+                    run_query("INSERT INTO produtos (codigo, descricao, unidade) VALUES (%s,%s,%s) ON CONFLICT (codigo) DO NOTHING", (cod, des, und), False)
+                    st.toast("Produto Cadastrado!", icon="✨"); time.sleep(1); st.rerun()
 
-    # --- HISTÓRICO ---
-    elif menu == "⚙️ Histórico Completo":
-        st.title("📜 Histórico Geral")
-        st.dataframe(df_movs, use_container_width=True)
-
-# Rodapé
-st.markdown("---")
-st.caption("Amâncio Obras • Sistema de Gestão v4.0")
+    # --- PÁGINA: GERENCIAMENTO (HISTÓRICO) ---
+    elif menu == "⚙️ Gerenciamento":
+        st.title("Histórico & Auditoria")
+        
+        tab_h, tab_del = st.tabs(["📜 Histórico Completo", "🗑️ Exclusão (Admin)"])
+        
+        with tab_h:
+            if not df_movs.empty:
+                st.dataframe(df_movs, use_container_width=True, height=500)
+            else: st.info("Sem histórico.")
+            
+        with tab_del:
+            st.warning("⚠️ Área de Risco: Excluir um registro recalcula todo o saldo imediatamente.")
+            col_del1, col_del2 = st.columns([1, 2])
+            with col_del1:
+                id_del = st.number_input("ID do Registro para Excluir", min_value=0)
+                if st.button("❌ Excluir Definitivamente", type="primary"):
+                    if id_del > 0:
+                        run_query("DELETE FROM movimentacoes WHERE id = %s", (id_del,), False)
+                        st.toast("Registro Apagado.", icon="🗑️"); time.sleep(1); st.rerun()
