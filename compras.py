@@ -9,8 +9,8 @@ import time
 # 1. CONFIGURAÇÃO PREMIUM
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Amâncio ERP",
-    page_icon="🏗️",
+    page_title="Portal Amâncio",
+    page_icon="favicon.png",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -69,9 +69,9 @@ def run_query(query, params=None, fetch_data=True):
     finally:
         if conn: conn.close()
 
-def logo_dinamica(width=150):
-    url_preta = "https://cdn-icons-png.flaticon.com/512/1063/1063196.png"
-    url_branca = "https://cdn-icons-png.flaticon.com/512/1063/1063196.png"
+def logo_dinamica(width=200):
+    url_preta = "logopreta.png"
+    url_branca = "logobranca.png"
     st.markdown(f"""
     <div style="display: flex; justify-content: center; margin-bottom: 15px;">
         <img src="{url_preta}" style="width: {width}px; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.1));">
@@ -152,7 +152,7 @@ if not st.session_state["authenticated"]:
 # -----------------------------------------------------------------------------
 else:
     with st.sidebar:
-        logo_dinamica(width=100)
+        logo_dinamica(width=200)
         st.markdown(f"<div style='text-align: center; color: gray; margin-bottom: 20px;'>Olá, {st.secrets['auth']['username'].title()}</div>", unsafe_allow_html=True)
         menu = st.radio("", ["📊 BI & Dashboard", "📦 Estoque (Semáforo)", "🔄 Operações", "⚙️ Auditoria"], label_visibility="collapsed")
         st.write(""); st.write("")
@@ -346,3 +346,4 @@ else:
                 if id_del > 0:
                     run_query("DELETE FROM movimentacoes WHERE id = %s", (id_del,), False)
                     st.toast("Registro removido.", icon="🗑️"); time.sleep(1); st.rerun()
+
