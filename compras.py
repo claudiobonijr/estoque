@@ -70,8 +70,8 @@ def run_query(query, params=None, fetch_data=True):
         if conn: conn.close()
 
 def logo_dinamica(width=200):
-    url_preta = "logopreta.png"
-    url_branca = "logobranca.png"
+    url_preta = "logopreta"
+    url_branca = "logobranca"
     st.markdown(f"""
     <div style="display: flex; justify-content: center; margin-bottom: 15px;">
         <img src="{url_preta}" style="width: {width}px; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.1));">
@@ -346,4 +346,5 @@ else:
                 if id_del > 0:
                     run_query("DELETE FROM movimentacoes WHERE id = %s", (id_del,), False)
                     st.toast("Registro removido.", icon="🗑️"); time.sleep(1); st.rerun()
+
 
