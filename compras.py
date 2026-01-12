@@ -85,7 +85,7 @@ if not df_prods.empty:
 # 4. BARRA LATERAL
 # -----------------------------------------------------------------------------
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/1063/1063196.png", width=60)
+    st.image("https://media.discordapp.net/attachments/1287152284328919116/1459226633025224879/Design-sem-nome-1.png?ex=696676b4&is=69652534&hm=c105a8bc947734040e988154ecef4e88f57da98dc697ec9337f1df86d58ddcdb&=&format=webp&quality=lossless&width=600&height=158", width=60)
     st.markdown("### Amâncio Obras")
     
     if not st.session_state["authenticated"]:
@@ -321,3 +321,4 @@ else:
     elif menu == "⚙️ Histórico Completo":
         st.title("📜 Histórico Geral")
         st.dataframe(df_movs, use_container_width=True)
+
