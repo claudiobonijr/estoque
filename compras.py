@@ -70,7 +70,7 @@ def run_query(query, params=None, fetch_data=True):
         if conn: conn.close()
 
 def logo_dinamica(width=200):
-    url_preta = "https://media.discordapp.net/attachments/1287152284328919116/1460338580768424049/logo-R-preto_2.png?ex=69668dc9&is=69653c49&hm=c3d437efa5275f25d14f7dbe0a78d7847820d5a5a1442c34a053905a187a5d36&=&format=webp&quality=lossless&width=1882&height=406"
+    url_preta = "https://media.discordapp.net/attachments/1287152284328919116/1459226633025224879/Design-sem-nome-1.png?ex=696676b4&is=69652534&hm=c105a8bc947734040e988154ecef4e88f57da98dc697ec9337f1df86d58ddcdb&=&format=webp&quality=lossless&width=600&height=158"
     url_branca = "https://media.discordapp.net/attachments/1287152284328919116/1459226633025224879/Design-sem-nome-1.png?ex=696676b4&is=69652534&hm=c105a8bc947734040e988154ecef4e88f57da98dc697ec9337f1df86d58ddcdb&=&format=webp&quality=lossless&width=600&height=158"
     st.markdown(f"""
     <div style="display: flex; justify-content: center; margin-bottom: 15px;">
@@ -346,6 +346,7 @@ else:
                 if id_del > 0:
                     run_query("DELETE FROM movimentacoes WHERE id = %s", (id_del,), False)
                     st.toast("Registro removido.", icon="🗑️"); time.sleep(1); st.rerun()
+
 
 
 
