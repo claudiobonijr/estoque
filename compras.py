@@ -1,28 +1,60 @@
 import streamlit as st
 import psycopg2
 import pandas as pd
-import plotly.express as px
 from datetime import datetime
 import time
 
 # -----------------------------------------------------------------------------
-# 1. CONFIGURAÇÃO (AGORA EM MODO CENTRALIZADO)
+# 1. CONFIGURAÇÃO DA PÁGINA
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="Amâncio Obras",
-    page_icon="https://media.discordapp.net/attachments/1287152284328919116/1460315254629204083/image.png?ex=69667810&is=69652690&hm=44811c3346fcda750951af2b9c53338ea62f2ce8b5f71f1bd29ed44950f92b4d&=&format=webp&quality=lossless&width=118&height=118",
-    layout="centered", # <--- O SEGREDO: Isso centraliza todo o site!
-    initial_sidebar_state="collapsed" # Esconde a barra lateral no login
+    page_icon="🏗️",
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
-# Inicializa Carrinhos
+# -----------------------------------------------------------------------------
+# 2. FUNÇÃO DE LOGO INTELIGENTE (DEFINIDA AQUI FORA)
+# -----------------------------------------------------------------------------
+def logo_dinamica(width=120):
+    # --- ÁREA DE CONFIGURAÇÃO DAS LOGOS ---
+    
+    # 1. Logo ESCURA (Preta/Azul) -> Aparece quando o fundo do site é BRANCO
+    url_logo_preta = "COLE_AQUI_O_LINK_DA_LOGO_PRETA.png" 
+    
+    # 2. Logo CLARA (Branca) -> Aparece quando o fundo do site é PRETO
+    # (Usei o link que você mandou aqui, assumindo que ela seja a branca)
+    url_logo_branca = "https://media.discordapp.net/attachments/1287152284328919116/1459226633025224879/Design-sem-nome-1.png?ex=696676b4&is=69652534&hm=c105a8bc947734040e988154ecef4e88f57da98dc697ec9337f1df86d58ddcdb&=&format=webp&quality=lossless&width=600&height=158"
+    
+    # O HTML Mágico que troca as imagens
+    st.markdown(f"""
+    <style>
+    /* Configuração Padrão (Modo Claro) */
+    .logo-light-mode {{ display: block; margin: 0 auto; }}
+    .logo-dark-mode  {{ display: none; margin: 0 auto; }}
+
+    /* Se o computador for Modo Escuro */
+    @media (prefers-color-scheme: dark) {{
+        .logo-light-mode {{ display: none; }}
+        .logo-dark-mode  {{ display: block; }}
+    }}
+    </style>
+    
+    <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+        <img src="{url_logo_preta}" class="logo-light-mode" width="{width}">
+        <img src="{url_logo_branca}" class="logo-dark-mode" width="{width}">
+    </div>
+    """, unsafe_allow_html=True)
+
+# Inicializa Variáveis de Sessão
 if "carrinho_entrada" not in st.session_state: st.session_state["carrinho_entrada"] = []
 if "carrinho_saida" not in st.session_state: st.session_state["carrinho_saida"] = []
 if "carrinho_ajuste" not in st.session_state: st.session_state["carrinho_ajuste"] = []
 if "authenticated" not in st.session_state: st.session_state["authenticated"] = False
 
 # -----------------------------------------------------------------------------
-# 2. ESTILO CSS (PARA CENTRALIZAR LOGOS E TEXTOS)
+# 3. ESTILO CSS GERAL
 # -----------------------------------------------------------------------------
 st.markdown("""
     <style>
@@ -38,13 +70,13 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
-    /* Ajuste fino para os botões */
+    /* Botões */
     .stButton>button { width: 100%; border-radius: 8px; }
     </style>
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 3. CONEXÃO BLINDADA
+# 4. CONEXÃO BLINDADA
 # -----------------------------------------------------------------------------
 def run_query(query, params=None, fetch_data=True):
     conn = None
@@ -69,7 +101,7 @@ def run_query(query, params=None, fetch_data=True):
         if conn: conn.close()
 
 # -----------------------------------------------------------------------------
-# 4. CARREGAMENTO DE DADOS
+# 5. CARREGAMENTO DE DADOS
 # -----------------------------------------------------------------------------
 df_prods = run_query("SELECT codigo, descricao, unidade FROM produtos ORDER BY descricao")
 df_movs = run_query("SELECT * FROM movimentacoes ORDER BY data DESC, id DESC")
@@ -100,25 +132,21 @@ if not df_prods.empty:
     saldo_atual.rename(columns={'qtd_real': 'Saldo', 'descricao': 'Produto', 'unidade': 'Unid', 'codigo': 'Cod'}, inplace=True)
 
 # -----------------------------------------------------------------------------
-# 5. TELA DE LOGIN (AGORA CENTRALIZADA)
+# 6. TELA DE LOGIN (CENTRALIZADA)
 # -----------------------------------------------------------------------------
 if not st.session_state["authenticated"]:
-    # Espaçamento para empurrar o login para o meio
-    st.write("")
-    st.write("")
+    st.write(""); st.write("") # Espaço topo
     
-    # Colunas para centralizar o cartão de login
     c_vazio1, c_login, c_vazio2 = st.columns([1, 2, 1])
     
     with c_login:
-        # LOGO DA EMPRESA (Coloque seu link aqui ou use o genérico)
-        st.image("https://media.discordapp.net/attachments/1287152284328919116/1459226633025224879/Design-sem-nome-1.png?ex=696676b4&is=69652534&hm=c105a8bc947734040e988154ecef4e88f57da98dc697ec9337f1df86d58ddcdb&=&format=webp&quality=lossless&width=600&height=158", width=250)
+        # --- AQUI CHAMA A LOGO DINÂMICA ---
+        logo_dinamica(width=250)
+        
         st.markdown("<h2 style='text-align: center;'>Portal Amâncio</h2>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: grey;'>Gestão de Estoque Inteligente</p>", unsafe_allow_html=True)
-        
         st.markdown("---")
         
-        # Formulário limpo
         with st.form("login_center"):
             u = st.text_input("Usuário")
             p = st.text_input("Senha", type="password")
@@ -132,7 +160,6 @@ if not st.session_state["authenticated"]:
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Área Pública abaixo do login
         with st.expander("👀 Consultar Estoque (Sem Senha)"):
              st.caption("Visão rápida para Engenheiros e Mestres")
              if not saldo_atual.empty:
@@ -144,12 +171,13 @@ if not st.session_state["authenticated"]:
                 st.info("Estoque vazio.")
 
 # -----------------------------------------------------------------------------
-# 6. ÁREA DO SISTEMA (LOGADO)
+# 7. ÁREA DO SISTEMA (LOGADO)
 # -----------------------------------------------------------------------------
 else:
-    # --- SIDEBAR (Só menu e sair) ---
     with st.sidebar:
-        st.image("https://media.discordapp.net/attachments/1287152284328919116/1459226633025224879/Design-sem-nome-1.png?ex=696676b4&is=69652534&hm=c105a8bc947734040e988154ecef4e88f57da98dc697ec9337f1df86d58ddcdb&=&format=webp&quality=lossless&width=600&height=158", width=200)
+        # --- LOGO DINÂMICA NA LATERAL TAMBÉM ---
+        logo_dinamica(width=180)
+        
         st.write(f"👤 **{st.secrets['auth']['username'].upper()}**")
         st.divider()
         menu = st.radio("Navegação", 
@@ -159,7 +187,7 @@ else:
             st.session_state["authenticated"] = False
             st.rerun()
 
-    # --- CONTEÚDO PRINCIPAL (CENTRALIZADO) ---
+    # --- CONTEÚDO PRINCIPAL ---
     
     if menu == "📊 Dashboard":
         st.title("📊 Visão Geral")
@@ -186,7 +214,6 @@ else:
     elif menu == "🔄 Operações (Lote)":
         st.title("🔄 Central de Operações")
         
-        # Abas Centralizadas
         tab_ent, tab_sai, tab_aj, tab_cad = st.tabs(["📥 ENTRADA", "📤 SAÍDA", "🔧 AJUSTE", "🆕 NOVO"])
         opcoes = [f"{r['codigo']} - {r['descricao']}" for i, r in df_prods.iterrows()] if not df_prods.empty else []
 
@@ -248,7 +275,7 @@ else:
                             st.success("Baixado!"); time.sleep(1); st.rerun()
                 if st.button("Limpar Lista", key="cls_sai"): st.session_state["carrinho_saida"] = []; st.rerun()
 
-        # 3. AJUSTE (Balanço) - CORRIGIDO E CENTRALIZADO
+        # 3. AJUSTE
         with tab_aj:
             st.error("🔧 Correção de Inventário")
             with st.form("add_aj"):
@@ -301,8 +328,7 @@ else:
             with c1:
                 id_del = st.number_input("ID para Apagar:", min_value=0, step=1)
             with c2:
-                st.write("") # Espaço
-                st.write("") # Espaço
+                st.write(""); st.write("")
                 if st.button("❌ EXCLUIR AGORA"):
                     if id_del > 0:
                         run_query("DELETE FROM movimentacoes WHERE id = %s", (id_del,), False)
@@ -311,4 +337,3 @@ else:
     elif menu == "⚙️ Histórico":
         st.title("📜 Histórico Completo")
         st.dataframe(df_movs, use_container_width=True)
-
