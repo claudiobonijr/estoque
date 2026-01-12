@@ -6,27 +6,32 @@ from datetime import datetime
 import time
 
 # -----------------------------------------------------------------------------
-# 1. CONFIGURAÇÃO DA PÁGINA
+# 1. CONFIGURAÇÃO
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Amâncio Gestão",
+    page_title="Amâncio Gestão Pro",
     page_icon="🏗️",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
+# Inicializa as "Listas Temporárias" (Carrinhos) na memória
+if "carrinho_entrada" not in st.session_state:
+    st.session_state["carrinho_entrada"] = []
+if "carrinho_saida" not in st.session_state:
+    st.session_state["carrinho_saida"] = []
+
 # -----------------------------------------------------------------------------
-# 2. CONEXÃO BLINDADA (SEM CACHE DE CONEXÃO)
+# 2. CONEXÃO (COM NOVA COLUNA DE CUSTO)
 # -----------------------------------------------------------------------------
 def run_query(query, params=None, fetch_data=True):
     conn = None
     try:
-        # Conecta sempre do zero para evitar quedas no Pooler do Supabase
         conn = psycopg2.connect(
             st.secrets["db_url"],
             connect_timeout=10,
-            gssencmode="disable" 
+            gssencmode="disable"
         )
-        
         if fetch_data:
             df = pd.read_sql(query, conn, params=params)
             return df
@@ -35,16 +40,12 @@ def run_query(query, params=None, fetch_data=True):
                 cur.execute(query, params)
                 conn.commit()
             return True
-            
     except Exception as e:
-        # Log do erro no console (invisível ao usuário comum) para debug
-        print(f"Erro BD: {e}") 
-        if fetch_data:
-            return pd.DataFrame() # Retorna tabela vazia para não quebrar o site
+        print(f"Erro SQL: {e}")
+        if fetch_data: return pd.DataFrame()
         return False
     finally:
-        if conn:
-            conn.close()
+        if conn: conn.close()
 
 # -----------------------------------------------------------------------------
 # 3. AUTENTICAÇÃO
@@ -55,16 +56,16 @@ if "authenticated" not in st.session_state:
 def login_screen():
     c1, c2, c3 = st.columns([1,2,1])
     with c2:
-        st.title("🔐 Login")
-        with st.form("login"):
+        st.markdown("<br><h1 style='text-align: center;'>🔐 Acesso Financeiro</h1>", unsafe_allow_html=True)
+        with st.form("login_form"):
             u = st.text_input("Usuário")
             p = st.text_input("Senha", type="password")
-            if st.form_submit_button("Entrar"):
+            if st.form_submit_button("Acessar Sistema"):
                 if u == st.secrets["auth"]["username"] and p == st.secrets["auth"]["password"]:
                     st.session_state["authenticated"] = True
                     st.rerun()
                 else:
-                    st.error("Dados incorretos.")
+                    st.error("Acesso negado.")
 
 # -----------------------------------------------------------------------------
 # 4. SISTEMA PRINCIPAL
@@ -72,167 +73,187 @@ def login_screen():
 def main_system():
     # --- SIDEBAR ---
     with st.sidebar:
-        st.title("Amâncio Obras")
-        menu = st.radio("Menu", ["📊 Dashboard", "📦 Operações", "⚙️ Dados"])
+        st.image("https://cdn-icons-png.flaticon.com/512/1063/1063196.png", width=60)
+        st.markdown("### **Amâncio Obras**")
+        st.caption("Versão Financeira 2.0")
+        st.divider()
+        menu = st.radio("Navegação:", ["📊 Dashboard Financeiro", "📦 Estoque & Preços", "🔄 Movimentações (Lote)", "⚙️ Histórico"])
+        st.divider()
         if st.button("Sair"):
             st.session_state["authenticated"] = False
             st.rerun()
 
-    # --- CARREGAMENTO DE DADOS ---
-    # Busca os dados no banco
+    # --- DADOS ---
     df_prods = run_query("SELECT codigo, descricao, unidade FROM produtos ORDER BY descricao")
     df_movs = run_query("SELECT * FROM movimentacoes ORDER BY data DESC, id DESC")
 
-    # Verifica se carregou produtos
-    if df_prods.empty and menu != "📦 Operações":
-        st.warning("⚠️ O sistema conectou, mas não encontrou produtos. Vá em 'Operações' > 'Novo Produto' para começar.")
-
-    # --- LÓGICA DE SALDO ---
-    # Cria uma estrutura base de saldo
-    saldo_atual = pd.DataFrame(columns=['Cod', 'Produto', 'Unid', 'Saldo'])
+    # --- CÁLCULO DE SALDO E CUSTO MÉDIO ---
+    saldo_atual = pd.DataFrame(columns=['Cod', 'Produto', 'Unid', 'Saldo', 'CustoMedio', 'ValorTotal'])
     
-    # Se houver dados, calcula o saldo
-    if not df_prods.empty:
-        if not df_movs.empty:
-            df_calc = df_movs.copy()
-            # Entrada e Ajuste(+) somam (1), Saída e Ajuste(-) subtraem (-1)
-            df_calc['fator'] = df_calc['tipo'].apply(lambda x: 1 if x in ['Entrada', 'Ajuste(+)'] else -1)
-            df_calc['qtd_real'] = df_calc['quantidade'] * df_calc['fator']
-            
-            # Agrupa por código
-            saldos = df_calc.groupby('codigo')['qtd_real'].sum().reset_index()
-            # Junta com a tabela de nomes dos produtos
-            saldo_atual = pd.merge(df_prods, saldos, on='codigo', how='left').fillna(0)
-        else:
-            # Se não tem movimentos, saldo é zero
-            saldo_atual = df_prods.copy()
-            saldo_atual['qtd_real'] = 0
-            
-        # Renomeia colunas para ficar bonito na tela
-        saldo_atual.rename(columns={'qtd_real': 'Saldo', 'descricao': 'Produto', 'unidade': 'Unid', 'codigo': 'Cod'}, inplace=True)
+    if not df_prods.empty and not df_movs.empty:
+        # 1. Calcular Saldo Físico
+        df_calc = df_movs.copy()
+        df_calc['fator'] = df_calc['tipo'].apply(lambda x: 1 if x in ['Entrada', 'Ajuste(+)'] else -1)
+        df_calc['qtd_real'] = df_calc['quantidade'] * df_calc['fator']
+        saldos = df_calc.groupby('codigo')['qtd_real'].sum().reset_index()
 
-    # --- TELAS DO SISTEMA ---
-    
-    # 1. DASHBOARD
-    if menu == "📊 Dashboard":
-        st.header("📊 Visão Geral")
+        # 2. Calcular Preço Médio (Baseado apenas nas Entradas)
+        entradas = df_movs[df_movs['tipo'] == 'Entrada'].copy()
+        entradas['total_gasto'] = entradas['quantidade'] * entradas['custo_unitario']
         
-        # Foi AQUI que o código anterior cortou. Abaixo está a correção:
+        # Agrupa gastos e quantidades compradas
+        custos = entradas.groupby('codigo')[['quantidade', 'total_gasto']].sum().reset_index()
+        custos['custo_medio'] = custos['total_gasto'] / custos['quantidade']
+        
+        # Junta tudo
+        saldo_atual = pd.merge(df_prods, saldos, on='codigo', how='left').fillna(0)
+        saldo_atual = pd.merge(saldo_atual, custos[['codigo', 'custo_medio']], on='codigo', how='left').fillna(0)
+        
+        # Calcula valor total em estoque
+        saldo_atual['valor_estoque'] = saldo_atual['qtd_real'] * saldo_atual['custo_medio']
+        
+        # Renomeia
+        saldo_atual.rename(columns={'qtd_real': 'Saldo', 'descricao': 'Produto', 'unidade': 'Unid', 'codigo': 'Cod'}, inplace=True)
+    elif not df_prods.empty:
+        saldo_atual = df_prods.copy()
+        saldo_atual['Saldo'] = 0
+        saldo_atual['custo_medio'] = 0
+        saldo_atual['valor_estoque'] = 0
+        saldo_atual.rename(columns={'descricao': 'Produto', 'unidade': 'Unid', 'codigo': 'Cod'}, inplace=True)
+
+    # =========================================================================
+    # TELA 1: DASHBOARD FINANCEIRO
+    # =========================================================================
+    if menu == "📊 Dashboard Financeiro":
+        st.title("📊 Visão Financeira do Estoque")
+        
         if not saldo_atual.empty:
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Total de Itens", len(saldo_atual))
-            c2.metric("Movimentações", len(df_movs) if not df_movs.empty else 0)
-            
-            # Conta quantos itens estão com saldo zero ou negativo
+            # MÉTRICAS
+            total_itens = len(saldo_atual)
+            valor_total = saldo_atual['valor_estoque'].sum()
             zerados = len(saldo_atual[saldo_atual['Saldo'] <= 0])
+            
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Itens Cadastrados", total_itens)
+            # Formatação de Moeda Brasileira
+            c2.metric("💰 Valor em Estoque", f"R$ {valor_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
             c3.metric("Estoque Zerado", zerados, delta_color="inverse")
             
             st.divider()
             
-            # Gráfico de Barras (Top 10 Itens com mais saldo)
-            if saldo_atual['Saldo'].sum() > 0:
-                top_itens = saldo_atual.nlargest(10, 'Saldo')
-                st.subheader("Top Itens em Estoque")
-                st.bar_chart(top_itens.set_index('Produto')['Saldo'])
-            else:
-                st.info("O estoque está zerado.")
-        else:
-            st.info("Cadastre materiais na aba 'Operações' para ver os indicadores.")
+            col_g1, col_g2 = st.columns([2,1])
+            with col_g1:
+                st.subheader("💰 Onde está seu dinheiro? (Top 10)")
+                if valor_total > 0:
+                    top_val = saldo_atual.nlargest(10, 'valor_estoque')
+                    fig = px.bar(top_val, x='valor_estoque', y='Produto', orientation='h', text_auto='.2s', color='valor_estoque', color_continuous_scale='Greens')
+                    fig.update_layout(xaxis_title="Reais (R$)", yaxis_title=None)
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("Cadastre entradas com preços para ver os gráficos.")
+            
+            with col_g2:
+                st.subheader("📋 Resumo Rápido")
+                st.dataframe(
+                    saldo_atual[['Produto', 'Saldo', 'valor_estoque']].sort_values('valor_estoque', ascending=False).head(10),
+                    hide_index=True,
+                    column_config={"valor_estoque": st.column_config.NumberColumn("Valor Total", format="R$ %.2f")}
+                )
 
-    # 2. OPERAÇÕES (Entrada, Saída, Cadastro)
-    elif menu == "📦 Operações":
-        st.header("📦 Gerenciar Estoque")
+    # =========================================================================
+    # TELA 2: ESTOQUE DETALHADO
+    # =========================================================================
+    elif menu == "📦 Estoque & Preços":
+        st.title("📦 Tabela de Preços e Saldos")
         
-        tab1, tab2, tab3 = st.tabs(["Entrada (Compra)", "Saída (Uso)", "Novo Produto"])
+        busca = st.text_input("🔍 Buscar:", placeholder="Nome do material...")
         
-        # Cria lista de opções para os selects (combobox)
-        lista_opcoes = []
+        if not saldo_atual.empty:
+            df_show = saldo_atual.copy()
+            if busca:
+                df_show = df_show[df_show['Produto'].str.contains(busca, case=False)]
+            
+            st.dataframe(
+                df_show[['Cod', 'Produto', 'Unid', 'Saldo', 'custo_medio', 'valor_estoque']],
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Saldo": st.column_config.NumberColumn("Qtd Física", format="%.2f"),
+                    "custo_medio": st.column_config.NumberColumn("Custo Médio (Unit)", format="R$ %.2f"),
+                    "valor_estoque": st.column_config.NumberColumn("Valor Total", format="R$ %.2f"),
+                }
+            )
+
+    # =========================================================================
+    # TELA 3: MOVIMENTAÇÕES EM LOTE (CARRINHO)
+    # =========================================================================
+    elif menu == "🔄 Movimentações (Lote)":
+        st.title("🔄 Central de Operações")
+        
+        tab_ent, tab_sai, tab_cad = st.tabs(["📥 ENTRADA (Múltiplos Itens)", "📤 SAÍDA (Múltiplos Itens)", "🆕 CADASTRO"])
+        
+        # Lista para selects
+        opcoes = []
         if not df_prods.empty:
-            lista_opcoes = [f"{row['codigo']} - {row['descricao']}" for i, row in df_prods.iterrows()]
+            opcoes = [f"{r['codigo']} - {r['descricao']}" for i, r in df_prods.iterrows()]
 
-        # -- ABA ENTRADA --
-        with tab1:
-            with st.form("form_ent"):
-                item_e = st.selectbox("Material", lista_opcoes)
-                qtd_e = st.number_input("Quantidade", min_value=0.01, step=1.0)
-                obs_e = st.text_input("Origem / Nota Fiscal")
-                if st.form_submit_button("Registrar Entrada"):
-                    if item_e:
-                        cod = item_e.split(" - ")[0]
-                        desc = item_e.split(" - ")[1]
-                        # Insere no banco
-                        run_query(
-                            "INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, referencia) VALUES (%s,%s,%s,%s,%s,%s,%s)",
-                            params=("Entrada", datetime.now().date(), "CENTRAL", cod, desc, qtd_e, obs_e), 
-                            fetch_data=False
-                        )
-                        st.success("Entrada salva com sucesso!")
-                        time.sleep(1)
+        # --- ABA ENTRADA COM LISTA ---
+        with tab_ent:
+            c1, c2 = st.columns([1, 2])
+            
+            # Lado Esquerdo: Formulário de Adição
+            with c1:
+                st.markdown("##### 1. Adicionar Item na Lista")
+                with st.form("add_ent_form", clear_on_submit=True):
+                    item_e = st.selectbox("Material", opcoes)
+                    qtd_e = st.number_input("Quantidade", min_value=0.01, step=1.0)
+                    custo_e = st.number_input("Valor Unitário (R$)", min_value=0.0, step=0.10, format="%.2f")
+                    
+                    if st.form_submit_button("⬇️ Colocar na Lista"):
+                        if item_e:
+                            st.session_state["carrinho_entrada"].append({
+                                "cod": item_e.split(" - ")[0],
+                                "desc": item_e.split(" - ")[1],
+                                "qtd": qtd_e,
+                                "custo": custo_e,
+                                "total": qtd_e * custo_e
+                            })
+                            st.rerun()
+
+            # Lado Direito: A Lista e Finalização
+            with c2:
+                st.markdown("##### 2. Lista de Itens da Nota")
+                if len(st.session_state["carrinho_entrada"]) > 0:
+                    df_cart = pd.DataFrame(st.session_state["carrinho_entrada"])
+                    st.dataframe(df_cart, hide_index=True, use_container_width=True,
+                                column_config={"custo": st.column_config.NumberColumn("Unitário", format="R$ %.2f"),
+                                               "total": st.column_config.NumberColumn("Total", format="R$ %.2f")})
+                    
+                    st.write(f"**Total da Nota: R$ {df_cart['total'].sum():,.2f}**")
+                    
+                    with st.form("finalizar_ent"):
+                        nf = st.text_input("Número da NF / Fornecedor (Válido para todos os itens)")
+                        if st.form_submit_button("✅ SALVAR TUDO NO ESTOQUE"):
+                            if nf:
+                                for item in st.session_state["carrinho_entrada"]:
+                                    run_query(
+                                        "INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, custo_unitario, referencia) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                                        ("Entrada", datetime.now().date(), "CENTRAL", item['cod'], item['desc'], item['qtd'], item['custo'], nf),
+                                        fetch_data=False
+                                    )
+                                st.session_state["carrinho_entrada"] = [] # Limpa carrinho
+                                st.success("Entrada em lote realizada!")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.warning("Preencha a NF/Fornecedor para finalizar.")
+                    
+                    if st.button("🗑️ Limpar Lista Entrada"):
+                        st.session_state["carrinho_entrada"] = []
                         st.rerun()
+                else:
+                    st.info("Lista vazia. Adicione itens ao lado.")
 
-        # -- ABA SAÍDA --
-        with tab2:
-            with st.form("form_sai"):
-                item_s = st.selectbox("Material", lista_opcoes, key="s_item")
-                qtd_s = st.number_input("Quantidade", min_value=0.01, step=1.0, key="s_qtd")
-                obra_s = st.text_input("Qual Obra / Destino?")
-                
-                if st.form_submit_button("Registrar Saída"):
-                    if item_s and obra_s:
-                        cod = item_s.split(" - ")[0]
-                        desc = item_s.split(" - ")[1]
-                        
-                        # Verifica saldo disponível antes de deixar sair
-                        saldo_disp = 0
-                        if not saldo_atual.empty:
-                            linha_prod = saldo_atual[saldo_atual['Cod'] == cod]
-                            if not linha_prod.empty:
-                                saldo_disp = linha_prod['Saldo'].values[0]
-                        
-                        if saldo_disp >= qtd_s:
-                            run_query(
-                                "INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade) VALUES (%s,%s,%s,%s,%s,%s)",
-                                params=("Saída", datetime.now().date(), obra_s, cod, desc, qtd_s), 
-                                fetch_data=False
-                            )
-                            st.success("Saída registrada!")
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.error(f"Saldo insuficiente! Você tem apenas {saldo_disp} disponível.")
-                    else:
-                        st.warning("Preencha a Obra de destino.")
-
-        # -- ABA CADASTRO --
-        with tab3:
-            with st.form("form_new"):
-                c_new = st.text_input("Código (Ex: CIM-01)").upper()
-                d_new = st.text_input("Nome (Ex: CIMENTO CP-II)").upper()
-                u_new = st.selectbox("Unidade", ["UNID", "KG", "M", "M2", "M3", "SC", "CX", "L"])
-                
-                if st.form_submit_button("Cadastrar"):
-                    if c_new and d_new:
-                        res = run_query(
-                            "INSERT INTO produtos (codigo, descricao, unidade) VALUES (%s, %s, %s) ON CONFLICT (codigo) DO NOTHING",
-                            params=(c_new, d_new, u_new), 
-                            fetch_data=False
-                        )
-                        if res:
-                            st.success("Produto cadastrado!")
-                            time.sleep(1)
-                            st.rerun()
-                    else:
-                        st.warning("Preencha Código e Nome.")
-
-    # 3. TABELA DE DADOS (HISTÓRICO)
-    elif menu == "⚙️ Dados":
-        st.header("Histórico Completo")
-        st.dataframe(df_movs, use_container_width=True)
-
-# -----------------------------------------------------------------------------
-# 5. EXECUÇÃO
-# -----------------------------------------------------------------------------
-if st.session_state["authenticated"]:
-    main_system()
-else:
-    login_screen()
+        # --- ABA SAÍDA COM LISTA ---
+        with tab_sai:
+            c1, c2
