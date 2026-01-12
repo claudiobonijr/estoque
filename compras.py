@@ -69,7 +69,7 @@ def run_query(query, params=None, fetch_data=True):
     finally:
         if conn: conn.close()
 
-def logo_dinamica(width=200):
+def logo_dinamica(width=150):
     url_preta = "https://media.discordapp.net/attachments/1287152284328919116/1459226633025224879/Design-sem-nome-1.png?ex=696676b4&is=69652534&hm=c105a8bc947734040e988154ecef4e88f57da98dc697ec9337f1df86d58ddcdb&=&format=webp&quality=lossless&width=600&height=300"
     url_branca = "https://media.discordapp.net/attachments/1287152284328919116/1459226633025224879/Design-sem-nome-1.png?ex=696676b4&is=69652534&hm=c105a8bc947734040e988154ecef4e88f57da98dc697ec9337f1df86d58ddcdb&=&format=webp&quality=lossless&width=600&height=300"
     st.markdown(f"""
@@ -125,7 +125,7 @@ if not st.session_state["authenticated"]:
     c1, c2, c3 = st.columns([1, 1, 1])
     with c2:
         st.write(""); st.write("")
-        logo_dinamica(width=120)
+        logo_dinamica(width=150)
         st.markdown("<h1 style='text-align: center; color: #1e293b; font-size: 24px;'>Portal Amâncio</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #64748b; font-size: 14px;'>Gestão de Estoque Inteligente</p>", unsafe_allow_html=True)
         
@@ -346,6 +346,7 @@ else:
                 if id_del > 0:
                     run_query("DELETE FROM movimentacoes WHERE id = %s", (id_del,), False)
                     st.toast("Registro removido.", icon="🗑️"); time.sleep(1); st.rerun()
+
 
 
 
