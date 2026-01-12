@@ -152,7 +152,7 @@ if not st.session_state["authenticated"]:
 # -----------------------------------------------------------------------------
 else:
     with st.sidebar:
-        logo_dinamica(width=200)
+        logo_dinamica(width=300)
         st.markdown(f"<div style='text-align: center; color: gray; margin-bottom: 20px;'>Olá, {st.secrets['auth']['username'].title()}</div>", unsafe_allow_html=True)
         menu = st.radio("", ["📊 BI & Dashboard", "📦 Estoque (Semáforo)", "🔄 Operações", "⚙️ Auditoria"], label_visibility="collapsed")
         st.write(""); st.write("")
@@ -346,6 +346,7 @@ else:
                 if id_del > 0:
                     run_query("DELETE FROM movimentacoes WHERE id = %s", (id_del,), False)
                     st.toast("Registro removido.", icon="🗑️"); time.sleep(1); st.rerun()
+
 
 
 
