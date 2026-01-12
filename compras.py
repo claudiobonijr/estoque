@@ -19,11 +19,16 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. FUNÇÃO DE CONEXÃO MELHORADA
+# 3. FUNÇÃO DE CONEXÃO AJUSTADA (PARA RESOLVER O ERRO DE ENDEREÇO)
 def run_query(query, is_select=True, params=None):
-    """Gerencia a abertura e fechamento da conexão automaticamente"""
+    """Gerencia a conexão forçando o desligamento de protocolos que travam o Streamlit"""
     try:
-        conn = psycopg2.connect(st.secrets["db_url"], connect_timeout=10)
+        # Adicionado gssencmode=disable para evitar o erro de 'requested address'
+        conn = psycopg2.connect(
+            st.secrets["db_url"], 
+            connect_timeout=10, 
+            gssencmode="disable"
+        )
         if is_select:
             df = pd.read_sql(query, conn, params=params)
             conn.close()
@@ -36,6 +41,7 @@ def run_query(query, is_select=True, params=None):
             conn.close()
             return True
     except Exception as e:
+        # Se der erro, ele mostrará exatamente o que é na tela
         st.error(f"Erro na operação: {e}")
         return None
 
@@ -68,7 +74,7 @@ with st.sidebar:
             st.session_state["authenticated"] = False
             st.rerun()
 
-# 6. LOGICA DAS TELAS (Só roda se estiver autenticado ou para ver saldo)
+# 6. LOGICA DAS TELAS
 if menu == "📊 Saldo Geral":
     st.title("📊 Saldo em Estoque")
     df_produtos = run_query("SELECT codigo, descricao, unidade FROM produtos ORDER BY descricao")
@@ -87,7 +93,7 @@ if menu == "📊 Saldo Geral":
         resultado.columns = ['Cód', 'Descrição', 'Und', 'Saldo Atual']
         st.dataframe(resultado, use_container_width=True, hide_index=True)
     else:
-        st.info("Nenhum material cadastrado ou erro ao carregar.")
+        st.info("Nenhum material cadastrado ou aguardando conexão...")
 
 elif menu == "📦 Cadastrar Material" and st.session_state["authenticated"]:
     st.title("📦 Novo Produto")
