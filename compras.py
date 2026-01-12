@@ -10,7 +10,7 @@ import time
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="Amâncio Obras",
-    page_icon="🏗️",
+    page_icon="https://media.discordapp.net/attachments/1287152284328919116/1460315254629204083/image.png?ex=69667810&is=69652690&hm=44811c3346fcda750951af2b9c53338ea62f2ce8b5f71f1bd29ed44950f92b4d&=&format=webp&quality=lossless&width=118&height=118",
     layout="centered", # <--- O SEGREDO: Isso centraliza todo o site!
     initial_sidebar_state="collapsed" # Esconde a barra lateral no login
 )
@@ -112,9 +112,9 @@ if not st.session_state["authenticated"]:
     
     with c_login:
         # LOGO DA EMPRESA (Coloque seu link aqui ou use o genérico)
-        st.image("https://cdn-icons-png.flaticon.com/512/1063/1063196.png", width=120)
+        st.image("https://media.discordapp.net/attachments/1287152284328919116/1459226633025224879/Design-sem-nome-1.png?ex=696676b4&is=69652534&hm=c105a8bc947734040e988154ecef4e88f57da98dc697ec9337f1df86d58ddcdb&=&format=webp&quality=lossless&width=600&height=158", width=250)
         st.markdown("<h2 style='text-align: center;'>Portal Amâncio</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: grey;'>Gestão Inteligente de Obras</p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: grey;'>Gestão de Estoque Inteligente</p>", unsafe_allow_html=True)
         
         st.markdown("---")
         
@@ -149,7 +149,7 @@ if not st.session_state["authenticated"]:
 else:
     # --- SIDEBAR (Só menu e sair) ---
     with st.sidebar:
-        st.image("https://cdn-icons-png.flaticon.com/512/1063/1063196.png", width=80)
+        st.image("https://media.discordapp.net/attachments/1287152284328919116/1459226633025224879/Design-sem-nome-1.png?ex=696676b4&is=69652534&hm=c105a8bc947734040e988154ecef4e88f57da98dc697ec9337f1df86d58ddcdb&=&format=webp&quality=lossless&width=600&height=158", width=200)
         st.write(f"👤 **{st.secrets['auth']['username'].upper()}**")
         st.divider()
         menu = st.radio("Navegação", 
@@ -311,3 +311,4 @@ else:
     elif menu == "⚙️ Histórico":
         st.title("📜 Histórico Completo")
         st.dataframe(df_movs, use_container_width=True)
+
