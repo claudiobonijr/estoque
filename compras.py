@@ -256,4 +256,91 @@ def main_system():
 
         # --- ABA SAÍDA COM LISTA ---
         with tab_sai:
-            c1, c2
+            c1, c2 = st.columns([1, 2])
+            
+            with c1:
+                st.markdown("##### 1. Adicionar Saída")
+                with st.form("add_sai_form", clear_on_submit=True):
+                    item_s = st.selectbox("Material", opcoes, key="s_item")
+                    qtd_s = st.number_input("Quantidade", min_value=0.01, step=1.0, key="s_qtd")
+                    
+                    if st.form_submit_button("⬇️ Colocar na Lista"):
+                        if item_s:
+                            st.session_state["carrinho_saida"].append({
+                                "cod": item_s.split(" - ")[0],
+                                "desc": item_s.split(" - ")[1],
+                                "qtd": qtd_s
+                            })
+                            st.rerun()
+
+            with c2:
+                st.markdown("##### 2. Itens indo para Obra")
+                if len(st.session_state["carrinho_saida"]) > 0:
+                    df_cart_s = pd.DataFrame(st.session_state["carrinho_saida"])
+                    st.dataframe(df_cart_s, hide_index=True, use_container_width=True)
+                    
+                    with st.form("finalizar_sai"):
+                        obra = st.text_input("Qual Obra receberá esses materiais?")
+                        if st.form_submit_button("📤 CONFIRMAR SAÍDA"):
+                            if obra:
+                                erros = []
+                                for item in st.session_state["carrinho_saida"]:
+                                    # Valida saldo individualmente
+                                    saldo_disp = 0
+                                    if not saldo_atual.empty:
+                                        row = saldo_atual[saldo_atual['Cod'] == item['cod']]
+                                        if not row.empty: saldo_disp = row['Saldo'].values[0]
+                                    
+                                    if saldo_disp >= item['qtd']:
+                                        run_query(
+                                            "INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, custo_unitario) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                                            ("Saída", datetime.now().date(), obra, item['cod'], item['desc'], item['qtd'], 0), # Saída custo 0 no registro simples
+                                            fetch_data=False
+                                        )
+                                    else:
+                                        erros.append(f"{item['desc']} (Saldo insuficiente)")
+
+                                if not erros:
+                                    st.session_state["carrinho_saida"] = []
+                                    st.success("Saída em lote registrada!")
+                                    time.sleep(1)
+                                    st.rerun()
+                                else:
+                                    st.error(f"Alguns itens não foram salvos por falta de saldo: {', '.join(erros)}")
+                            else:
+                                st.warning("Informe a Obra.")
+                    
+                    if st.button("🗑️ Limpar Lista Saída"):
+                        st.session_state["carrinho_saida"] = []
+                        st.rerun()
+                else:
+                    st.info("Lista vazia.")
+
+        # --- ABA CADASTRO (IGUAL) ---
+        with tab_cad:
+            with st.form("new_prod"):
+                c1, c2, c3 = st.columns([1,2,1])
+                cod = c1.text_input("Código").upper()
+                desc = c2.text_input("Descrição").upper()
+                un = c3.selectbox("Unidade", ["UNID", "KG", "M", "M2", "M3", "SC", "CX"])
+                if st.form_submit_button("Salvar"):
+                    if cod and desc:
+                        run_query("INSERT INTO produtos (codigo, descricao, unidade) VALUES (%s,%s,%s) ON CONFLICT (codigo) DO NOTHING", (cod, desc, un), fetch_data=False)
+                        st.success("Cadastrado!")
+                        time.sleep(1)
+                        st.rerun()
+
+    # =========================================================================
+    # TELA 4: HISTÓRICO
+    # =========================================================================
+    elif menu == "⚙️ Histórico":
+        st.title("⚙️ Histórico Completo")
+        st.dataframe(df_movs, use_container_width=True)
+
+# -----------------------------------------------------------------------------
+# 5. EXECUÇÃO
+# -----------------------------------------------------------------------------
+if st.session_state["authenticated"]:
+    main_system()
+else:
+    login_screen()
