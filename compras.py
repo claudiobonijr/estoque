@@ -6,7 +6,7 @@ from datetime import datetime
 import time
 
 # ==============================================================================
-# 1. CONFIGURAÇÃO & DESIGN SYSTEM (PREMIUM)
+# 1. CONFIGURAÇÃO & DESIGN SYSTEM (ADAPTÁVEL / DARK MODE FRIENDLY)
 # ==============================================================================
 st.set_page_config(
     page_title="Portal Amâncio | SCM",
@@ -15,8 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- PALETA DE CORES & ESTILO CSS ---
-# Força o tema claro via CSS para garantir o visual corporativo
+# --- CSS INTELIGENTE (Detecta o tema do navegador) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
@@ -25,112 +24,94 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
     
-    /* REMOVER PADRÕES DO STREAMLIT */
+    /* ELIMINAR ESPAÇOS DESNECESSÁRIOS */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
     
-    /* SIDEBAR PERSONALIZADA */
-    [data-testid="stSidebar"] {
-        background-color: #0f172a;
-    }
-    [data-testid="stSidebar"] * {
-        color: #e2e8f0 !important;
+    /* CARTÕES DE KPI - ESTILO GLASSMORPHISM ADAPTÁVEL */
+    div[data-testid="metric-container"] {
+        background-color: var(--secondary-background-color); /* Cor de fundo nativa secundária */
+        border: 1px solid rgba(128, 128, 128, 0.2); /* Borda sutil */
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s, box-shadow 0.2s;
+        color: var(--text-color); /* Texto usa a cor do tema */
     }
     
-    /* CARDS DE KPI (FATOR UAU) */
-    div[data-testid="metric-container"] {
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        transition: transform 0.2s;
-    }
     div[data-testid="metric-container"]:hover {
         transform: translateY(-2px);
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-        border-color: #3b82f6;
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+        border-color: #3b82f6; /* Azul destaque ao passar o mouse */
     }
+
     [data-testid="stMetricLabel"] {
-        color: #64748b;
+        opacity: 0.7; /* Texto levemente mais suave */
         font-size: 0.9rem;
         font-weight: 600;
     }
+    
     [data-testid="stMetricValue"] {
-        color: #0f172a;
         font-weight: 700;
     }
 
-    /* TABELAS */
-    .stDataFrame {
-        background-color: white;
-        padding: 10px;
-        border-radius: 10px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-
-    /* BOTÕES */
+    /* BOTÕES MAIS MODERNOS */
     .stButton>button {
         border-radius: 8px;
         font-weight: 600;
         border: none;
         transition: all 0.3s ease;
+        height: 3em;
     }
-    div.stButton > button:first-child {
-        background-color: #ffffff; 
-        color: #0f172a;
-        border: 1px solid #cbd5e1;
-    }
-    div.stButton > button:first-child:hover {
-        background-color: #f8fafc;
-        border-color: #3b82f6;
-        color: #3b82f6;
-    }
-
+    
     /* TABS */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
-        background-color: transparent;
     }
     .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        background-color: #ffffff;
+        background-color: transparent;
         border-radius: 8px;
-        border: 1px solid #e2e8f0;
-        color: #64748b;
-        font-weight: 600;
+        border: 1px solid rgba(128, 128, 128, 0.2);
         padding: 0 20px;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #0f172a !important;
-        color: #ffffff !important;
+        background-color: #3b82f6 !important; /* Azul destaque */
+        color: white !important;
         border: none;
     }
 
-    /* RODAPÉ */
+    /* RODAPÉ RESPONSIVO */
     .footer {
         position: fixed;
         left: 0;
         bottom: 0;
         width: 100%;
-        background: linear-gradient(to right, #0f172a, #1e293b);
-        color: #94a3b8;
+        background-color: var(--secondary-background-color);
+        color: var(--text-color);
         text-align: center;
         padding: 8px;
-        font-size: 11px;
-        letter-spacing: 1px;
+        font-size: 0.7rem;
+        opacity: 0.8;
         z-index: 999;
+        border-top: 1px solid rgba(128, 128, 128, 0.2);
     }
-    .block-container { padding-bottom: 80px; padding-top: 2rem; }
+    .block-container { padding-bottom: 80px; padding-top: 1rem; }
     
-    /* LOGIN BOX */
+    /* LOGIN BOX CENTRALIZADO */
     .login-box {
-        background: white;
+        background-color: var(--secondary-background-color);
         padding: 2rem;
         border-radius: 15px;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-        border: 1px solid #e2e8f0;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(128, 128, 128, 0.2);
+    }
+    
+    /* AJUSTE PARA MOBILE (TEXTOS MENORES EM TELAS PEQUENAS) */
+    @media (max-width: 640px) {
+        h1 { font-size: 1.5rem !important; }
+        h2 { font-size: 1.2rem !important; }
+        [data-testid="metric-container"] { padding: 10px; }
     }
     </style>
     
@@ -140,7 +121,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. KERNEL DE DADOS (DB & Cache)
+# 2. KERNEL DE DADOS
 # ==============================================================================
 
 @st.cache_resource
@@ -148,7 +129,7 @@ def get_db_connection():
     try:
         return psycopg2.connect(st.secrets["db_url"], connect_timeout=5)
     except Exception as e:
-        st.error(f"❌ Falha de conexão Crítica: {e}")
+        st.error(f"❌ Falha de conexão: {e}")
         return None
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -186,6 +167,10 @@ def processar_estoque():
     
     if not df_movs.empty:
         df_calc = df_movs.copy()
+        # Ajuste de tipos para garantir cálculos corretos
+        df_calc['quantidade'] = pd.to_numeric(df_calc['quantidade'], errors='coerce').fillna(0)
+        df_calc['custo_unitario'] = pd.to_numeric(df_calc['custo_unitario'], errors='coerce').fillna(0)
+        
         df_calc['fator'] = df_calc['tipo'].apply(lambda x: 1 if x in ['Entrada', 'Ajuste(+)'] else -1)
         df_calc['qtd_real'] = df_calc['quantidade'] * df_calc['fator']
         
@@ -231,8 +216,8 @@ if not st.session_state["authenticated"]:
     c1, c2, c3 = st.columns([1, 1.2, 1])
     with c2:
         st.markdown('<div class="login-box">', unsafe_allow_html=True)
-        st.markdown("<h2 style='text-align: center; color: #0f172a; margin-bottom: 0px;'>🏗️ Portal Amâncio</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: #64748b; font-size: 14px;'>Sistema Integrado de Gestão</p>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; margin-bottom: 10px;'>🏗️ Portal Amâncio</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; opacity: 0.7; font-size: 14px;'>Sistema Integrado de Gestão</p>", unsafe_allow_html=True)
         st.markdown("---")
         
         with st.form("login_form"):
@@ -241,39 +226,35 @@ if not st.session_state["authenticated"]:
             submit = st.form_submit_button("🔒 ACESSAR SISTEMA", type="primary", use_container_width=True)
             
             if submit:
-                if user == st.secrets["auth"]["username"] and pwd == st.secrets["auth"]["password"]:
+                # Verifique se 'auth' está no secrets, senão use padrão
+                u_secret = st.secrets["auth"]["username"] if "auth" in st.secrets else "admin"
+                p_secret = st.secrets["auth"]["password"] if "auth" in st.secrets else "admin"
+                
+                if user == u_secret and pwd == p_secret:
                     st.session_state["authenticated"] = True
                     st.rerun()
                 else:
                     st.error("Credenciais inválidas.")
         
         st.markdown("</div>", unsafe_allow_html=True)
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        with st.expander("🔍 Consulta Pública (Acesso Visitante)"):
-            df_public = processar_estoque()
-            if not df_public.empty:
-                busca_pub = st.text_input("O que você procura?", placeholder="Ex: Cimento, Areia...")
-                if busca_pub:
-                    df_public = df_public[df_public['Produto'].str.contains(busca_pub, case=False)]
-                
-                st.dataframe(df_public[['Produto', 'Saldo', 'Unid', 'Status']], hide_index=True, use_container_width=True, height=300)
-            else:
-                st.info("Sistema offline para consultas.")
 
 # --- SISTEMA LOGADO ---
 else:
     with st.sidebar:
-        st.image("https://cdn-icons-png.flaticon.com/512/1063/1063196.png", width=60)
-        st.markdown("<h3 style='color: white;'>Amâncio Obras</h3>", unsafe_allow_html=True)
-        st.markdown("<p style='color: #94a3b8; font-size: 12px;'>v2.5 Enterprise</p>", unsafe_allow_html=True)
+        # Tenta usar uma logo, se falhar usa emoji
+        try:
+            st.image("https://cdn-icons-png.flaticon.com/512/1063/1063196.png", width=50)
+        except:
+            st.write("🏗️")
+            
+        st.markdown("### Amâncio Obras")
+        st.caption("v2.5 Enterprise | Dark Ready")
         st.markdown("---")
         
         menu = st.radio("NAVEGAÇÃO", ["📊 Dashboard", "📦 Estoque Geral", "🔄 Central de Operações", "⚙️ Auditoria & Logs"])
         
         st.markdown("---")
-        c_logout = st.columns(1)[0]
-        if c_logout.button("Sair do Sistema"):
+        if st.button("Sair do Sistema", use_container_width=True):
             st.session_state["authenticated"] = False
             st.rerun()
 
@@ -281,18 +262,19 @@ else:
     
     # 1. DASHBOARD
     if menu == "📊 Dashboard":
-        st.markdown("### 📊 Visão Executiva")
-        st.markdown("Monitoramento em tempo real dos indicadores de obra.")
+        st.title("📊 Visão Executiva")
+        st.caption("Monitoramento em tempo real dos indicadores de obra.")
         
         if not df_estoque.empty:
             total_inv = df_estoque['valor_estoque'].sum()
+            # CORREÇÃO DO ERRO AQUI:
             ruptura = len(df_estoque[df_estoque['Saldo'] <= 0])
             total_itens = len(df_estoque)
             
-            # CORREÇÃO AQUI: 'ruptura' em vez de 'rupture'
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Valor em Estoque", f"R$ {total_inv:,.2f}", delta="Atualizado agora")
-            c2.metric("Itens Cadastrados", total_itens, delta="Mix de Produtos")
+            c1.metric("Valor em Estoque", f"R$ {total_inv:,.2f}", delta="Atualizado")
+            c2.metric("Itens Cadastrados", total_itens, delta="Mix Total")
+            # Uso da variável correta 'ruptura'
             c3.metric("Ruptura (Zerados)", ruptura, delta="- Crítico" if ruptura > 0 else "Estável", delta_color="inverse")
             c4.metric("Status do Sistema", "Online 🟢")
             
@@ -300,25 +282,50 @@ else:
             
             g1, g2 = st.columns([2, 1])
             with g1:
-                st.markdown("##### 📈 Curva ABC (Valor)")
+                st.subheader("📈 Curva ABC (Valor)")
                 if not df_estoque.empty:
-                    fig_bar = px.bar(df_estoque.nlargest(8, 'valor_estoque'), x='Produto', y='valor_estoque', text_auto='.2s', color='valor_estoque', color_continuous_scale='Blues')
-                    fig_bar.update_layout(xaxis_title=None, yaxis_title=None, height=350, margin=dict(l=0, r=0, t=0, b=0))
+                    fig_bar = px.bar(
+                        df_estoque.nlargest(8, 'valor_estoque'), 
+                        x='Produto', y='valor_estoque', 
+                        text_auto='.2s', 
+                        # Template 'plotly_dark' se ajusta melhor ao fundo escuro, ou 'plotly' para claro
+                        template="plotly_dark",
+                        color='valor_estoque', color_continuous_scale='Blues'
+                    )
+                    # Força o fundo do gráfico a ser transparente para pegar a cor do container
+                    fig_bar.update_layout(
+                        xaxis_title=None, yaxis_title=None, height=350, 
+                        margin=dict(l=0, r=0, t=0, b=0),
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        font=dict(color="white" if st.get_option("theme.base") == "dark" else "black") 
+                    )
                     st.plotly_chart(fig_bar, use_container_width=True)
             with g2:
-                st.markdown("##### 🍩 Saúde do Estoque")
-                fig_pie = px.pie(df_estoque, names='Status', hole=0.6, color='Status', color_discrete_map={'🔴 Zerado':'#ef4444', '🟡 Baixo':'#eab308', '🟢 Normal':'#22c55e'})
-                fig_pie.update_layout(height=350, margin=dict(l=0, r=0, t=0, b=0), showlegend=True, legend=dict(orientation="h"))
+                st.subheader("🍩 Saúde do Estoque")
+                fig_pie = px.pie(
+                    df_estoque, names='Status', hole=0.6, 
+                    color='Status', 
+                    color_discrete_map={'🔴 Zerado':'#ef4444', '🟡 Baixo':'#eab308', '🟢 Normal':'#22c55e'},
+                    template="plotly_dark"
+                )
+                fig_pie.update_layout(
+                    height=350, margin=dict(l=0, r=0, t=0, b=0), 
+                    showlegend=True, legend=dict(orientation="h"),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                )
                 st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.info("Nenhum dado encontrado no banco de dados.")
 
     # 2. ESTOQUE
     elif menu == "📦 Estoque Geral":
-        st.markdown("### 📦 Inventário Físico & Financeiro")
+        st.title("📦 Inventário Físico & Financeiro")
         if not df_estoque.empty:
             c_filtro, c_btn = st.columns([4, 1])
             with c_filtro: search = st.text_input("🔎 Pesquisar Material:", placeholder="Digite nome, código ou categoria...")
             with c_btn:
-                st.markdown("<br>", unsafe_allow_html=True)
+                st.write("") # Espaçador
                 st.download_button("📥 Baixar Excel", df_estoque.to_csv(index=False).encode('utf-8'), "estoque.csv", use_container_width=True)
             
             df_show = df_estoque[df_estoque['Produto'].str.contains(search, case=False)] if search else df_estoque
@@ -327,7 +334,7 @@ else:
                 df_show[['Cod', 'Produto', 'Status', 'Saldo', 'Unid', 'custo_medio', 'valor_estoque']],
                 hide_index=True, use_container_width=True, height=600,
                 column_config={
-                    "Saldo": st.column_config.ProgressColumn("Nível", format="%.1f", min_value=0, max_value=df_estoque['Saldo'].max()),
+                    "Saldo": st.column_config.ProgressColumn("Nível", format="%.1f", min_value=0, max_value=float(df_estoque['Saldo'].max()) if not df_estoque.empty else 100),
                     "custo_medio": st.column_config.NumberColumn("Custo Médio", format="R$ %.2f"),
                     "valor_estoque": st.column_config.NumberColumn("Total ($)", format="R$ %.2f"),
                     "Status": st.column_config.TextColumn("Status", width="small"),
@@ -336,8 +343,11 @@ else:
 
     # 3. OPERAÇÕES
     elif menu == "🔄 Central de Operações":
-        st.markdown("### 🔄 Central de Movimentações")
-        lista_prods = [f"{r['Cod']} - {r['Produto']}" for i, r in df_estoque.iterrows()] if not df_estoque.empty else []
+        st.title("🔄 Central de Movimentações")
+        
+        lista_prods = []
+        if not df_estoque.empty:
+            lista_prods = [f"{r['Cod']} - {r['Produto']}" for i, r in df_estoque.iterrows()]
         
         tab1, tab2, tab3, tab4 = st.tabs(["📥 RECEBIMENTO", "📤 EXPEDIÇÃO", "🔧 AJUSTE", "✨ NOVO PRODUTO"])
         
@@ -363,13 +373,13 @@ else:
                             for i in st.session_state["carrinho_entrada"]:
                                 execute_action("INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, custo_unitario, referencia) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)", ("Entrada", datetime.now().date(), "CENTRAL", i['cod'], i['desc'], i['qtd'], i['custo'], nf))
                             st.session_state["carrinho_entrada"] = []; st.toast("Sucesso!"); time.sleep(1); st.rerun()
-                else: st.info("Carrinho vazio.")
+                else: st.info("Carrinho de entrada vazio.")
 
         # Saída
         with tab2:
             c1, c2 = st.columns([1, 1.5], gap="large")
             with c1:
-                st.caption("Seleção")
+                st.caption("Seleção de Saída")
                 with st.container(border=True):
                     is_ = st.selectbox("Material", lista_prods, key="is")
                     qs = st.number_input("Qtd", 0.01, key="qs")
@@ -384,7 +394,7 @@ else:
                             for i in st.session_state["carrinho_saida"]:
                                 execute_action("INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, custo_unitario) VALUES (%s,%s,%s,%s,%s,%s,%s)", ("Saída", datetime.now().date(), ob, i['cod'], i['desc'], i['qtd'], 0))
                             st.session_state["carrinho_saida"] = []; st.toast("Saída Registrada!"); time.sleep(1); st.rerun()
-                else: st.info("Lista vazia.")
+                else: st.info("Lista de saída vazia.")
 
         # Ajuste
         with tab3:
@@ -406,13 +416,23 @@ else:
                 nd = c_2.text_input("Descrição").title()
                 nu = c_3.selectbox("Unid", ["UNID", "KG", "M", "M2", "M3", "SC", "CX"])
                 if st.form_submit_button("Salvar Produto", use_container_width=True):
-                    execute_action("INSERT INTO produtos (codigo, descricao, unidade) VALUES (%s,%s,%s) ON CONFLICT (codigo) DO NOTHING", (nc, nd, nu))
-                    st.toast("Cadastrado!"); time.sleep(1); st.rerun()
+                    if nc and nd:
+                        execute_action("INSERT INTO produtos (codigo, descricao, unidade) VALUES (%s,%s,%s) ON CONFLICT (codigo) DO NOTHING", (nc, nd, nu))
+                        st.toast("Cadastrado!"); time.sleep(1); st.rerun()
+                    else:
+                        st.error("Preencha código e descrição.")
 
     # 4. ADMIN
     elif menu == "⚙️ Auditoria & Logs":
-        st.markdown("### ⚙️ Logs do Sistema")
-        st.dataframe(fetch_data("SELECT * FROM movimentacoes ORDER BY id DESC LIMIT 50"), use_container_width=True)
-        id_del = st.number_input("ID para excluir", min_value=0)
-        if st.button("Excluir Registro", type="primary"):
-            if id_del > 0: execute_action("DELETE FROM movimentacoes WHERE id = %s", (id_del,)); st.rerun()
+        st.title("⚙️ Logs do Sistema")
+        df_logs = fetch_data("SELECT * FROM movimentacoes ORDER BY id DESC LIMIT 50")
+        st.dataframe(df_logs, use_container_width=True)
+        
+        st.divider()
+        st.warning("Zona de Perigo")
+        c_del1, c_del2 = st.columns([1, 4])
+        id_del = c_del1.number_input("ID para excluir", min_value=0)
+        if c_del2.button("🗑️ Excluir Registro Permanentemente"):
+            if id_del > 0: 
+                execute_action("DELETE FROM movimentacoes WHERE id = %s", (id_del,))
+                st.rerun()
