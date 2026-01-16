@@ -6,433 +6,219 @@ from datetime import datetime
 import time
 
 # ==============================================================================
-# 1. CONFIGURAÇÃO & DESIGN SYSTEM (ADAPTÁVEL / DARK MODE FRIENDLY)
+# 1. DESIGN SYSTEM & RESPONSIVIDADE (DARK MODE READY)
 # ==============================================================================
-st.set_page_config(
-    page_title="Portal Amâncio | SCM",
-    page_icon="🏗️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="Portal Amâncio | SCM", page_icon="🏗️", layout="wide")
 
-# --- CSS INTELIGENTE (Detecta o tema do navegador) ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+    /* Estilização Geral Adaptável */
+    .main { background-color: transparent; }
     
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-    }
-    
-    /* ELIMINAR ESPAÇOS DESNECESSÁRIOS */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    
-    /* CARTÕES DE KPI - ESTILO GLASSMORPHISM ADAPTÁVEL */
+    /* Cartões de KPI Estilo Glassmorphism */
     div[data-testid="metric-container"] {
-        background-color: var(--secondary-background-color); /* Cor de fundo nativa secundária */
-        border: 1px solid rgba(128, 128, 128, 0.2); /* Borda sutil */
-        padding: 15px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        transition: transform 0.2s, box-shadow 0.2s;
-        color: var(--text-color); /* Texto usa a cor do tema */
-    }
-    
-    div[data-testid="metric-container"]:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
-        border-color: #3b82f6; /* Azul destaque ao passar o mouse */
-    }
-
-    [data-testid="stMetricLabel"] {
-        opacity: 0.7; /* Texto levemente mais suave */
-        font-size: 0.9rem;
-        font-weight: 600;
-    }
-    
-    [data-testid="stMetricValue"] {
-        font-weight: 700;
-    }
-
-    /* BOTÕES MAIS MODERNOS */
-    .stButton>button {
-        border-radius: 8px;
-        font-weight: 600;
-        border: none;
-        transition: all 0.3s ease;
-        height: 3em;
-    }
-    
-    /* TABS */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background-color: transparent;
-        border-radius: 8px;
+        background-color: var(--secondary-background-color);
         border: 1px solid rgba(128, 128, 128, 0.2);
-        padding: 0 20px;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #3b82f6 !important; /* Azul destaque */
-        color: white !important;
-        border: none;
-    }
-
-    /* RODAPÉ RESPONSIVO */
-    .footer {
-        position: fixed;
-        left: 0;
-        bottom: 0;
-        width: 100%;
-        background-color: var(--secondary-background-color);
-        color: var(--text-color);
-        text-align: center;
-        padding: 8px;
-        font-size: 0.7rem;
-        opacity: 0.8;
-        z-index: 999;
-        border-top: 1px solid rgba(128, 128, 128, 0.2);
-    }
-    .block-container { padding-bottom: 80px; padding-top: 1rem; }
-    
-    /* LOGIN BOX CENTRALIZADO */
-    .login-box {
-        background-color: var(--secondary-background-color);
-        padding: 2rem;
+        padding: 20px;
         border-radius: 15px;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
-        border: 1px solid rgba(128, 128, 128, 0.2);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
     
-    /* AJUSTE PARA MOBILE (TEXTOS MENORES EM TELAS PEQUENAS) */
+    /* Tabelas e Dataframes */
+    .stDataFrame { border-radius: 10px; overflow: hidden; }
+
+    /* Ajustes Mobile */
     @media (max-width: 640px) {
-        h1 { font-size: 1.5rem !important; }
-        h2 { font-size: 1.2rem !important; }
-        [data-testid="metric-container"] { padding: 10px; }
+        .block-container { padding: 1rem !important; }
+        .stMetric { margin-bottom: 15px; }
+    }
+    
+    .footer {
+        position: fixed; left: 0; bottom: 0; width: 100%;
+        background-color: var(--secondary-background-color);
+        color: var(--text-color); text-align: center;
+        padding: 5px; font-size: 0.7rem; z-index: 999;
+        border-top: 1px solid rgba(128, 128, 128, 0.1);
     }
     </style>
-    
-    <div class="footer">
-        AMÂNCIO GESTÃO INTELIGENTE &copy; 2026 • DESENVOLVIDO POR CLAUDIO BONI
-    </div>
+    <div class="footer">AMÂNCIO GESTÃO INTELIGENTE &copy; 2026 • RESPONSIVE v3.0</div>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. KERNEL DE DADOS
+# 2. ENGINE DE DADOS (POSTGRESQL)
 # ==============================================================================
+def get_conn():
+    return psycopg2.connect(st.secrets["db_url"])
 
-@st.cache_resource
-def get_db_connection():
+def execute_sql(query, params=None):
     try:
-        return psycopg2.connect(st.secrets["db_url"], connect_timeout=5)
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, params)
+                conn.commit()
+        st.cache_data.clear()
+        return True
     except Exception as e:
-        st.error(f"❌ Falha de conexão: {e}")
-        return None
-
-@st.cache_data(ttl=60, show_spinner=False)
-def fetch_data(query, params=None):
-    conn = get_db_connection()
-    if not conn: return pd.DataFrame()
-    try:
-        return pd.read_sql(query, conn, params=params)
-    except Exception as e:
-        st.error(f"Erro SQL: {e}")
-        return pd.DataFrame()
-
-def execute_action(query, params=None):
-    conn = get_db_connection()
-    if not conn: return False
-    try:
-        with conn.cursor() as cur:
-            cur.execute(query, params)
-            conn.commit()
-            fetch_data.clear() 
-            return True
-    except Exception as e:
-        conn.rollback()
-        st.toast(f"Erro ao salvar: {e}", icon="❌")
+        st.error(f"Erro na operação: {e}")
         return False
 
 @st.cache_data(ttl=60)
-def processar_estoque():
-    df_prods = fetch_data("SELECT codigo, descricao, unidade FROM produtos ORDER BY descricao")
-    df_movs = fetch_data("SELECT * FROM movimentacoes")
+def load_data(query):
+    try:
+        with get_conn() as conn:
+            return pd.read_sql(query, conn)
+    except: return pd.DataFrame()
+
+def processar_estoque_full():
+    df_p = load_data("SELECT * FROM produtos")
+    df_m = load_data("SELECT * FROM movimentacoes")
+    if df_p.empty: return pd.DataFrame()
     
-    if df_prods.empty: return pd.DataFrame()
-    
-    saldo_final = df_prods.copy()
-    
-    if not df_movs.empty:
-        df_calc = df_movs.copy()
-        # Ajuste de tipos para garantir cálculos corretos
-        df_calc['quantidade'] = pd.to_numeric(df_calc['quantidade'], errors='coerce').fillna(0)
-        df_calc['custo_unitario'] = pd.to_numeric(df_calc['custo_unitario'], errors='coerce').fillna(0)
+    if not df_m.empty:
+        df_m['fator'] = df_m['tipo'].apply(lambda x: 1 if x in ['Entrada', 'Ajuste(+)'] else -1)
+        df_m['qtd_final'] = df_m['quantidade'] * df_m['fator']
+        # Cálculo de custo médio simples para os gráficos
+        entradas = df_m[df_m['tipo'] == 'Entrada']
+        custos = entradas.groupby('codigo')['custo_unitario'].mean().reset_index()
         
-        df_calc['fator'] = df_calc['tipo'].apply(lambda x: 1 if x in ['Entrada', 'Ajuste(+)'] else -1)
-        df_calc['qtd_real'] = df_calc['quantidade'] * df_calc['fator']
+        saldos = df_m.groupby('codigo')['qtd_final'].sum().reset_index()
+        df_p = pd.merge(df_p, saldos, on='codigo', how='left')
+        df_p = pd.merge(df_p, custos, on='codigo', how='left')
+    else:
+        df_p['qtd_final'] = 0.0
+        df_p['custo_unitario'] = 0.0
         
-        saldos = df_calc.groupby('codigo')['qtd_real'].sum().reset_index()
-        
-        entradas = df_movs[df_movs['tipo'] == 'Entrada'].copy()
-        custos = pd.DataFrame()
-        if not entradas.empty:
-            entradas['total_gasto'] = entradas['quantidade'] * entradas['custo_unitario']
-            custos = entradas.groupby('codigo')[['quantidade', 'total_gasto']].sum().reset_index()
-            custos['custo_medio'] = custos['total_gasto'] / custos['quantidade']
-        
-        saldo_final = pd.merge(saldo_final, saldos, on='codigo', how='left')
-        if not custos.empty:
-            saldo_final = pd.merge(saldo_final, custos[['codigo', 'custo_medio']], on='codigo', how='left')
-            
-    saldo_final = saldo_final.fillna(0)
-    if 'qtd_real' not in saldo_final.columns: saldo_final['qtd_real'] = 0.0
-    if 'custo_medio' not in saldo_final.columns: saldo_final['custo_medio'] = 0.0
-    
-    saldo_final['valor_estoque'] = saldo_final['qtd_real'] * saldo_final['custo_medio']
-    
-    def get_status(q):
-        if q <= 0: return "🔴 Zerado"
-        if q < 10: return "🟡 Baixo"
-        return "🟢 Normal"
-        
-    saldo_final['Status'] = saldo_final['qtd_real'].apply(get_status)
-    saldo_final.rename(columns={'qtd_real': 'Saldo', 'descricao': 'Produto', 'unidade': 'Unid', 'codigo': 'Cod'}, inplace=True)
-    return saldo_final
+    df_p = df_p.fillna(0)
+    df_p['valor_total'] = df_p['qtd_final'] * df_p['custo_unitario']
+    df_p['Status'] = df_p['qtd_final'].apply(lambda x: "🔴 Zerado" if x <= 0 else ("🟡 Baixo" if x < 5 else "🟢 OK"))
+    return df_p
 
 # ==============================================================================
-# 3. INTERFACE & NAVEGAÇÃO
+# 3. INTERFACE DE NAVEGAÇÃO
 # ==============================================================================
-
-if "carrinho_entrada" not in st.session_state: st.session_state["carrinho_entrada"] = []
-if "carrinho_saida" not in st.session_state: st.session_state["carrinho_saida"] = []
 if "authenticated" not in st.session_state: st.session_state["authenticated"] = False
 
-# --- TELA DE LOGIN ---
 if not st.session_state["authenticated"]:
-    st.write(""); st.write("")
-    c1, c2, c3 = st.columns([1, 1.2, 1])
+    c1, c2, c3 = st.columns([1, 1.5, 1])
     with c2:
-        st.markdown('<div class="login-box">', unsafe_allow_html=True)
-        st.markdown("<h2 style='text-align: center; margin-bottom: 10px;'>🏗️ Portal Amâncio</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; opacity: 0.7; font-size: 14px;'>Sistema Integrado de Gestão</p>", unsafe_allow_html=True)
-        st.markdown("---")
-        
-        with st.form("login_form"):
-            user = st.text_input("ID Usuário")
-            pwd = st.text_input("Senha de Acesso", type="password")
-            submit = st.form_submit_button("🔒 ACESSAR SISTEMA", type="primary", use_container_width=True)
-            
-            if submit:
-                # Verifique se 'auth' está no secrets, senão use padrão
-                u_secret = st.secrets["auth"]["username"] if "auth" in st.secrets else "admin"
-                p_secret = st.secrets["auth"]["password"] if "auth" in st.secrets else "admin"
-                
-                if user == u_secret and pwd == p_secret:
+        st.title("🏗️ Amâncio SCM")
+        with st.form("login"):
+            u = st.text_input("Usuário")
+            p = st.text_input("Senha", type="password")
+            if st.form_submit_button("Acessar", use_container_width=True):
+                if u == st.secrets["auth"]["username"] and p == st.secrets["auth"]["password"]:
                     st.session_state["authenticated"] = True
                     st.rerun()
-                else:
-                    st.error("Credenciais inválidas.")
-        
-        st.markdown("</div>", unsafe_allow_html=True)
-
-# --- SISTEMA LOGADO ---
 else:
-    with st.sidebar:
-        # Tenta usar uma logo, se falhar usa emoji
-        try:
-            st.image("https://cdn-icons-png.flaticon.com/512/1063/1063196.png", width=50)
-        except:
-            st.write("🏗️")
-            
-        st.markdown("### Amâncio Obras")
-        st.caption("v2.5 Enterprise | Dark Ready")
-        st.markdown("---")
-        
-        menu = st.radio("NAVEGAÇÃO", ["📊 Dashboard", "📦 Estoque Geral", "🔄 Central de Operações", "⚙️ Auditoria & Logs"])
-        
-        st.markdown("---")
-        if st.button("Sair do Sistema", use_container_width=True):
-            st.session_state["authenticated"] = False
-            st.rerun()
-
-    df_estoque = processar_estoque()
+    df_estoque = processar_estoque_full()
+    df_cats = load_data("SELECT nome FROM categorias ORDER BY nome")
     
-    # 1. DASHBOARD
+    menu = st.sidebar.radio("Navegação", ["📊 Dashboard", "📦 Inventário", "🔄 Movimentações", "⚙️ Configurações"])
+
+    # --- 1. DASHBOARD INTELIGENTE ---
     if menu == "📊 Dashboard":
-        st.title("📊 Visão Executiva")
-        st.caption("Monitoramento em tempo real dos indicadores de obra.")
+        st.title("📊 Painel de Controle")
         
         if not df_estoque.empty:
-            total_inv = df_estoque['valor_estoque'].sum()
-            # CORREÇÃO DO ERRO AQUI:
-            ruptura = len(df_estoque[df_estoque['Saldo'] <= 0])
-            total_itens = len(df_estoque)
-            
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Valor em Estoque", f"R$ {total_inv:,.2f}", delta="Atualizado")
-            c2.metric("Itens Cadastrados", total_itens, delta="Mix Total")
-            # Uso da variável correta 'ruptura'
-            c3.metric("Ruptura (Zerados)", ruptura, delta="- Crítico" if ruptura > 0 else "Estável", delta_color="inverse")
-            c4.metric("Status do Sistema", "Online 🟢")
+            c1.metric("Itens no Estoque", len(df_estoque))
+            c2.metric("Valor Total", f"R$ {df_estoque['valor_total'].sum():,.2f}")
+            ruptura = len(df_estoque[df_estoque['qtd_final'] <= 0])
+            c3.metric("Ruptura", ruptura, delta=f"{ruptura} itens zerados", delta_color="inverse")
+            c4.metric("Categorias", len(df_cats))
+
+            st.markdown("---")
+            g1, g2 = st.columns(2)
             
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-            g1, g2 = st.columns([2, 1])
             with g1:
-                st.subheader("📈 Curva ABC (Valor)")
-                if not df_estoque.empty:
-                    fig_bar = px.bar(
-                        df_estoque.nlargest(8, 'valor_estoque'), 
-                        x='Produto', y='valor_estoque', 
-                        text_auto='.2s', 
-                        # Template 'plotly_dark' se ajusta melhor ao fundo escuro, ou 'plotly' para claro
-                        template="plotly_dark",
-                        color='valor_estoque', color_continuous_scale='Blues'
-                    )
-                    # Força o fundo do gráfico a ser transparente para pegar a cor do container
-                    fig_bar.update_layout(
-                        xaxis_title=None, yaxis_title=None, height=350, 
-                        margin=dict(l=0, r=0, t=0, b=0),
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        font=dict(color="white" if st.get_option("theme.base") == "dark" else "black") 
-                    )
-                    st.plotly_chart(fig_bar, use_container_width=True)
+                st.subheader("📦 Volume por Categoria")
+                fig_cat = px.pie(df_estoque, names='categoria', values='qtd_final', hole=0.4, template="plotly_dark")
+                fig_cat.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                st.plotly_chart(fig_cat, use_container_width=True)
+                
             with g2:
-                st.subheader("🍩 Saúde do Estoque")
-                fig_pie = px.pie(
-                    df_estoque, names='Status', hole=0.6, 
-                    color='Status', 
-                    color_discrete_map={'🔴 Zerado':'#ef4444', '🟡 Baixo':'#eab308', '🟢 Normal':'#22c55e'},
-                    template="plotly_dark"
-                )
-                fig_pie.update_layout(
-                    height=350, margin=dict(l=0, r=0, t=0, b=0), 
-                    showlegend=True, legend=dict(orientation="h"),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                )
-                st.plotly_chart(fig_pie, use_container_width=True)
+                st.subheader("💰 Investimento por Categoria")
+                df_val_cat = df_estoque.groupby('categoria')['valor_total'].sum().reset_index()
+                fig_val = px.bar(df_val_cat, x='categoria', y='valor_total', color='categoria', template="plotly_dark")
+                fig_val.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
+                st.plotly_chart(fig_val, use_container_width=True)
         else:
-            st.info("Nenhum dado encontrado no banco de dados.")
+            st.info("Aguardando dados para gerar gráficos.")
 
-    # 2. ESTOQUE
-    elif menu == "📦 Estoque Geral":
-        st.title("📦 Inventário Físico & Financeiro")
-        if not df_estoque.empty:
-            c_filtro, c_btn = st.columns([4, 1])
-            with c_filtro: search = st.text_input("🔎 Pesquisar Material:", placeholder="Digite nome, código ou categoria...")
-            with c_btn:
-                st.write("") # Espaçador
-                st.download_button("📥 Baixar Excel", df_estoque.to_csv(index=False).encode('utf-8'), "estoque.csv", use_container_width=True)
+    # --- 2. INVENTÁRIO ---
+    elif menu == "📦 Inventário":
+        st.title("📦 Inventário Geral")
+        filtro_cat = st.multiselect("Filtrar por Categoria", df_cats['nome'].tolist())
+        
+        df_view = df_estoque.copy()
+        if filtro_cat:
+            df_view = df_view[df_view['categoria'].isin(filtro_cat)]
             
-            df_show = df_estoque[df_estoque['Produto'].str.contains(search, case=False)] if search else df_estoque
+        st.dataframe(
+            df_view[['codigo', 'descricao', 'categoria', 'unidade', 'qtd_final', 'Status']],
+            use_container_width=True, hide_index=True,
+            column_config={
+                "qtd_final": st.column_config.NumberColumn("Saldo Atual", format="%.2f"),
+                "Status": st.column_config.TextColumn("Situação")
+            }
+        )
+
+    # --- 3. MOVIMENTAÇÕES ---
+    elif menu == "🔄 Movimentações":
+        st.title("🔄 Registrar Movimento")
+        with st.form("operacao"):
+            col1, col2 = st.columns(2)
+            tipo = col1.selectbox("Tipo", ["Entrada", "Saída", "Ajuste(+)"])
+            if not df_estoque.empty:
+                item = col2.selectbox("Produto", [f"{r['codigo']} | {r['descricao']}" for i,r in df_estoque.iterrows()])
+            else:
+                item = None
             
-            st.dataframe(
-                df_show[['Cod', 'Produto', 'Status', 'Saldo', 'Unid', 'custo_medio', 'valor_estoque']],
-                hide_index=True, use_container_width=True, height=600,
-                column_config={
-                    "Saldo": st.column_config.ProgressColumn("Nível", format="%.1f", min_value=0, max_value=float(df_estoque['Saldo'].max()) if not df_estoque.empty else 100),
-                    "custo_medio": st.column_config.NumberColumn("Custo Médio", format="R$ %.2f"),
-                    "valor_estoque": st.column_config.NumberColumn("Total ($)", format="R$ %.2f"),
-                    "Status": st.column_config.TextColumn("Status", width="small"),
-                }
-            )
+            qtd = st.number_input("Quantidade", min_value=0.01)
+            custo = st.number_input("Custo Unitário (Apenas p/ Entradas)", min_value=0.0)
+            ref = st.text_input("Referência (Nº Nota ou Nome da Obra)")
+            
+            if st.form_submit_button("Confirmar Lançamento", use_container_width=True):
+                if item:
+                    cod_sel = item.split(" | ")[0]
+                    desc_sel = item.split(" | ")[1]
+                    execute_sql("INSERT INTO movimentacoes (tipo, data, codigo, descricao, quantidade, custo_unitario, referencia) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                               (tipo, datetime.now().date(), cod_sel, desc_sel, qtd, custo, ref))
+                    st.success("Lançamento realizado com sucesso!")
+                    time.sleep(1)
+                    st.rerun()
 
-    # 3. OPERAÇÕES
-    elif menu == "🔄 Central de Operações":
-        st.title("🔄 Central de Movimentações")
+    # --- 4. CONFIGURAÇÕES (CADASTROS) ---
+    elif menu == "⚙️ Configurações":
+        st.title("⚙️ Gerenciamento do Sistema")
         
-        lista_prods = []
-        if not df_estoque.empty:
-            lista_prods = [f"{r['Cod']} - {r['Produto']}" for i, r in df_estoque.iterrows()]
+        t1, t2 = st.tabs(["✨ Cadastrar Produto", "📂 Gerenciar Categorias"])
         
-        tab1, tab2, tab3, tab4 = st.tabs(["📥 RECEBIMENTO", "📤 EXPEDIÇÃO", "🔧 AJUSTE", "✨ NOVO PRODUTO"])
-        
-        # Entrada
-        with tab1:
-            c1, c2 = st.columns([1, 1.5], gap="large")
-            with c1:
-                st.caption("Itens da Nota")
-                with st.container(border=True):
-                    ie = st.selectbox("Material", lista_prods, key="ie")
-                    qe = st.number_input("Qtd", 0.01, key="qe")
-                    ve = st.number_input("Custo Unit.", 0.0, key="ve")
-                    if st.button("➕ Incluir", key="add_e", use_container_width=True):
-                        if ie: st.session_state["carrinho_entrada"].append({"cod": ie.split(" - ")[0], "desc": ie.split(" - ")[1], "qtd": qe, "custo": ve, "total": qe*ve}); st.rerun()
-            with c2:
-                if st.session_state["carrinho_entrada"]:
-                    df_c = pd.DataFrame(st.session_state["carrinho_entrada"])
-                    st.dataframe(df_c, hide_index=True, use_container_width=True, column_config={"total": st.column_config.NumberColumn("Total", format="R$ %.2f")})
-                    st.info(f"Total Nota: R$ {df_c['total'].sum():,.2f}")
-                    nf = st.text_input("Fornecedor / NF")
-                    if st.button("✅ Confirmar Entrada", type="primary", use_container_width=True):
-                        if nf:
-                            for i in st.session_state["carrinho_entrada"]:
-                                execute_action("INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, custo_unitario, referencia) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)", ("Entrada", datetime.now().date(), "CENTRAL", i['cod'], i['desc'], i['qtd'], i['custo'], nf))
-                            st.session_state["carrinho_entrada"] = []; st.toast("Sucesso!"); time.sleep(1); st.rerun()
-                else: st.info("Carrinho de entrada vazio.")
+        with t1:
+            with st.form("novo_prod"):
+                c1, c2 = st.columns(2)
+                ncod = c1.text_input("Código do Produto").upper()
+                ndesc = c2.text_input("Descrição / Nome")
+                
+                # SELEÇÃO DINÂMICA DE CATEGORIA
+                ncat = st.selectbox("Categoria", df_cats['nome'].tolist() if not df_cats.empty else ["Cadastre uma categoria primeiro"])
+                nunid = st.selectbox("Unidade", ["UNID", "KG", "M", "M2", "M3", "SC", "CX"])
+                
+                if st.form_submit_button("Salvar Produto"):
+                    if ncod and ndesc and ncat:
+                        execute_sql("INSERT INTO produtos (codigo, descricao, unidade, categoria) VALUES (%s,%s,%s,%s)",
+                                   (ncod, ndesc, nunid, ncat))
+                        st.success(f"Produto {ndesc} cadastrado!")
+                        st.rerun()
 
-        # Saída
-        with tab2:
-            c1, c2 = st.columns([1, 1.5], gap="large")
-            with c1:
-                st.caption("Seleção de Saída")
-                with st.container(border=True):
-                    is_ = st.selectbox("Material", lista_prods, key="is")
-                    qs = st.number_input("Qtd", 0.01, key="qs")
-                    if st.button("➕ Incluir", key="add_s", use_container_width=True):
-                        if is_: st.session_state["carrinho_saida"].append({"cod": is_.split(" - ")[0], "desc": is_.split(" - ")[1], "qtd": qs}); st.rerun()
-            with c2:
-                if st.session_state["carrinho_saida"]:
-                    st.dataframe(pd.DataFrame(st.session_state["carrinho_saida"]), hide_index=True, use_container_width=True)
-                    ob = st.text_input("Obra / Destino")
-                    if st.button("📤 Confirmar Saída", type="primary", use_container_width=True):
-                        if ob:
-                            for i in st.session_state["carrinho_saida"]:
-                                execute_action("INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, custo_unitario) VALUES (%s,%s,%s,%s,%s,%s,%s)", ("Saída", datetime.now().date(), ob, i['cod'], i['desc'], i['qtd'], 0))
-                            st.session_state["carrinho_saida"] = []; st.toast("Saída Registrada!"); time.sleep(1); st.rerun()
-                else: st.info("Lista de saída vazia.")
-
-        # Ajuste
-        with tab3:
-            with st.form("ajuste"):
-                ia = st.selectbox("Produto", lista_prods)
-                qa = st.number_input("Diferença (+ ou -)", step=1.0)
-                ma = st.text_input("Motivo")
-                if st.form_submit_button("Processar Ajuste", use_container_width=True):
-                    if ia and qa != 0 and ma:
-                        execute_action("INSERT INTO movimentacoes (tipo, data, obra, codigo, descricao, quantidade, custo_unitario, referencia) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)", 
-                                       ("Ajuste(+)" if qa > 0 else "Ajuste(-)", datetime.now().date(), "BALANÇO", ia.split(" - ")[0], ia.split(" - ")[1], abs(qa), 0, ma))
-                        st.toast("Ajustado!"); time.sleep(1); st.rerun()
-
-        # Cadastro
-        with tab4:
-            with st.form("cad"):
-                c_1, c_2, c_3 = st.columns([1,2,1])
-                nc = c_1.text_input("Código").upper()
-                nd = c_2.text_input("Descrição").title()
-                nu = c_3.selectbox("Unid", ["UNID", "KG", "M", "M2", "M3", "SC", "CX"])
-                if st.form_submit_button("Salvar Produto", use_container_width=True):
-                    if nc and nd:
-                        execute_action("INSERT INTO produtos (codigo, descricao, unidade) VALUES (%s,%s,%s) ON CONFLICT (codigo) DO NOTHING", (nc, nd, nu))
-                        st.toast("Cadastrado!"); time.sleep(1); st.rerun()
-                    else:
-                        st.error("Preencha código e descrição.")
-
-    # 4. ADMIN
-    elif menu == "⚙️ Auditoria & Logs":
-        st.title("⚙️ Logs do Sistema")
-        df_logs = fetch_data("SELECT * FROM movimentacoes ORDER BY id DESC LIMIT 50")
-        st.dataframe(df_logs, use_container_width=True)
-        
-        st.divider()
-        st.warning("Zona de Perigo")
-        c_del1, c_del2 = st.columns([1, 4])
-        id_del = c_del1.number_input("ID para excluir", min_value=0)
-        if c_del2.button("🗑️ Excluir Registro Permanentemente"):
-            if id_del > 0: 
-                execute_action("DELETE FROM movimentacoes WHERE id = %s", (id_del,))
-                st.rerun()
+        with t2:
+            st.subheader("Categorias Existentes")
+            st.write(", ".join(df_cats['nome'].tolist()) if not df_cats.empty else "Nenhuma categoria.")
+            
+            with st.form("nova_cat"):
+                ncat_nome = st.text_input("Nome da Nova Categoria (Ex: Elétrica)")
+                if st.form_submit_button("Adicionar Categoria"):
+                    if ncat_nome:
+                        execute_sql("INSERT INTO categorias (nome) VALUES (%s)", (ncat_nome.title(),))
+                        st.success("Categoria adicionada!")
+                        st.rerun()
